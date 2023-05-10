@@ -1,0 +1,118 @@
+model:
+  retinafocus:
+    retinaface:
+      backbone: Resnet18
+      freeze_backbone: False
+      pretrain: True
+      return_layers: {'layer2': 1, 'layer3': 2, 'layer4': 3}
+      in_channel: 64
+      out_channel: 256
+      num_classes: 2 # 0: Background, 1: Text
+      num_anchors: 9 # num ratios * num min_sizes (each FPN level)
+    autofocus:
+      stride: 8
+
+  priorbox:
+    min_sizes: [[16, 24.68, 38.05], [58.69, 90.51, 139.58], [215.27, 332, 512]]
+    ratios: [[1, 1], [2, 1], [1, 2]] # Anchors' ratios (height, width)
+    steps: [8, 16, 32]
+    clip: False
+
+
+data:
+  # Labels:
+  #   0 - Background
+  #   1 - Text
+
+  batch_size: 2
+  val_batch_size: 2
+  num_workers: 2
+  val_num_workers: 2
+
+  image_size: 448
+  # dont_care_low: 5
+  # dont_care_high: 90
+  # small_threshold: 25
+  dont_care_low: 3
+  dont_care_high: 200
+  small_threshold: 50
+
+  # Augmentation
+  brighten_param: [-32, 32]
+  contrast_param: [0.5, 1.5]
+  saturate_param: [0.5, 1.5]
+  hue_param: [-18, 18, 180]
+  resize_methods: [
+    0, #cv2.INTER_NEAREST
+    1, #cv2.INTER_LINEAR
+    2, #cv2.INTER_CUBIC
+    3, #cv2.INTER_AREA
+    4, #cv2.INTER_LANCZOS4
+  ]
+  rgb_mean: [104, 117, 123]  # BGR order
+  # pre_scales: [0.3, 0.45, 0.6, 0.8, 1.0] # faster training, but lower accuracy
+  pre_scales: [0.3, 0.45, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+  use_albumentations: True
+  train_bbox_iof_threshold: 1
+  train_min_num_landmarks: 3
+  mixup: null
+  # mixup:
+  #   types: [1, 2, 4]
+  #   mix_2_pos_types: ['left_right', 'up_down']
+  #   range: [0.3, 0.7]
+
+
+train:
+  id: total-text-train
+  load_weights_only: False
+  start_from_epoch: 0
+  log_graph: False
+  log_every: 100 # The number of iterations for each logging
+
+  epochs: 70
+  lr: 0.003
+  variance: [0.1, 0.2]
+  loc_weight: 2.0
+  cls_weight: 3.0
+  conf_weight: 1.0
+  lm_weight: 1.0
+  foc_weight: 1.0
+
+  # Criterion
+  obj_overlap_threshold: 0.35
+  bg_class_id: 0
+  fg_class_id: 1
+  negpos_ratio: 7 # The ratio between negative and positive samples used in the hard-negative-mining strategy
+  focal_gamma: 1.0
+  min_num_neg: 2000
+
+  # 1cycleLR
+  1cycle_start_div: 5
+  1cycle_end_div: 20
+
+  # ReduceLROnPlateau scheduler
+  use_rop_scheduler: True
+  rop_factor: 0.3
+  rop_patience: 3
+
+  # StepLR scheduler
+  use_steplr_scheduler: False
+  sl_gamma: 0.3
+  sl_step_size: 5
+
+  # Save checkpoint
+  save_best_loss: True
+  save_best_det_map: True
+  save_best_foc_dice: True
+  save_best_foc_iou: True
+  save_best_foc_diff: True
+  save_latest: True
+  save_all_epochs: False
+
+  # Used in the evaluation process
+  top_k_before_nms: 5000
+  nms_threshold: 0.3
+  top_k_after_nms: 750
+  nms_per_class: False
+  iou_threshold: 0.75
+  mask_conf_threshold: 0.5

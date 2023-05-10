@@ -1,0 +1,53 @@
+infer:
+  scale_down: 10
+  first_round_zoom_in: 5
+  zoom_in_scale: 3
+  second_round_size_threshold: 500 # size of original object
+  valid_range: [2800, 4200] # [min_size, max_size] of an image right before forwarding through the model
+  max_chip_size: 750
+  interpolation: 1
+    # 0: INTER_NEAREST
+    # 1: INTER_LINEAR
+    # 2: INTER_CUBIC
+    # 3: INTER_AREA
+    # 4: INTER_LANCZOS4
+  variance: [0.1, 0.2]
+  top_k_before_nms: 5000
+  top_k_after_nms: 750
+  nms_threshold: 0.3
+  nms_per_class: False # Currently, we only SUPPORT reviewer and don't make our own decision
+                       # Real and Fake prediction of same faces will be cropped => duplication
+
+  # Grid generator
+  max_valid_size: 20000 # The maximum size of the longest axis
+  grid_threshold: 10000 # Crop an image into grid if the maximum size is bigger than this threshold (for improving accuracy purpose)
+  overlap_ratio: 0.1 # The overlap ratio between the overlap area and the whole image
+
+  # Focus branch
+  focus_threshold: 0.2
+  kernel_size: 7
+  min_chip_size: 50
+  max_focus_rank: 2 # The number of times that use auto-focus prediction to zoom in
+
+  # Decision
+  mr_reject_threshold: 0.7
+  mr_review_threshold: 0.5
+  no_mr_reject_threshold: 0.95
+  no_mr_review_threshold: 0.75
+  fake_threshold: 0.9
+  fake_overlap_real: 0.6
+  human_threshold: 0.7 # TODO: Should remove if we dont use human anymore
+  num_human_threshold: 2
+  adjust_label: True # To calculate metrics
+
+  # Draw image
+  draw_valid_range: [1024, 2048]
+  draw_gts: False
+  draw_preds: False
+  is_review: True
+  merge_small_mr_clear_mr: True
+
+  # Crop face from image
+  crop_faces: True
+  crop_expansion: 20 # Expand dimension of face crop, to get more information of context
+  crop_max_size: 150
