@@ -44,6 +44,7 @@ class Trainer(object):
                  train_cfg: dict,
                  data_cfg: dict,
                  model_cfg: dict,
+                 device: str,
                  checkpoint_path: None):
         self.model = model
         self.priors = priors
@@ -53,6 +54,7 @@ class Trainer(object):
         self.train_cfg = train_cfg
         self.data_cfg = data_cfg
         self.model_cfg = model_cfg
+        self.device = device
 
         self.start_from_epoch = self.train_cfg['start_from_epoch']
         self.stop_at_epoch = \
@@ -77,7 +79,7 @@ class Trainer(object):
             self.rop_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer=self.optimizer,
                 factor=self.train_cfg['rop_factor'],
-                patience=self.train_cfg['top_patience'],
+                patience=self.train_cfg['rop_patience'],
                 min_lr=1e-7,
                 verbose=True
             )
@@ -116,7 +118,7 @@ class Trainer(object):
 
     def _log_graph(self, dataloader, writer):
         image_batch, _, _, _, _ = next(iter(dataloader))
-        image_batch = image_batch.cuda()
+        image_batch = image_batch.to(self.device)
         writer.add_graph(self.model, (image_batch))
 
     def _load_checkpoint(self, checkpoint_path):
@@ -240,10 +242,10 @@ class Trainer(object):
         train_iters = len(train_dataloader)
 
         for batch_idx, (image_batch, targets_batch, mask_batch, _, _) in enumerate(train_pbar):
-            image_batch = image_batch.cuda()
-            targets_batch = [target_batch.cuda()
+            image_batch = image_batch.to(self.device)
+            targets_batch = [target_batch.to(self.device)
                             for target_batch in targets_batch]
-            mask_batch = mask_batch.cuda()
+            mask_batch = mask_batch.to(self.device)
 
             lr, mom = onecycle.calc()
             self.update_lr(lr)
@@ -258,6 +260,7 @@ class Trainer(object):
                             targets_batch,
                             preds[-1],
                             mask_batch)
+
             loss['sum'] = self.train_cfg['loc_weight'] * loss['loc'] \
                 + self.train_cfg['cls_weight'] * loss['cls'] \
                 + self.train_cfg['conf_weight'] * loss['conf'] \

@@ -140,7 +140,7 @@ class RetinaFace(nn.Module):
         self.ClassHead = self._make_class_head(fpn_num=3,
                                             inchannels=cfg['out_channel'],
                                             num_anchors=self.num_anchors,
-                                            num_classes=cfg['num_clases'])
+                                            num_classes=cfg['num_classes'])
 
     def _make_class_head(self, fpn_num=3, inchannels=64, num_anchors=2, num_classes=2):
         classhead = nn.ModuleList()

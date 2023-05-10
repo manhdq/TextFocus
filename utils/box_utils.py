@@ -123,12 +123,13 @@ def match(cfg, truths, priors, variances, labels, landms, loc_t, conf_t, landm_t
     best_prior_overlap, best_prior_idx = overlaps.max(1, keepdim=True)
 
     # Ignore hard gt
-    valid_gt_idx = best_prior_overlap[:, 0]
+    valid_gt_idx = best_prior_overlap[:, 0] >= 0.2
     best_prior_idx_filter = best_prior_idx[valid_gt_idx, :]
     ##TODO: Make sure no sample has no object is in data
     if best_prior_idx_filter.shape[0] <= 0:
-        loc_t[idx] = 0
-        conf_t[idx] = 0
+        loc_t[idx] = torch.zeros_like(loc_t[idx])
+        conf_t[idx] = torch.zeros_like(conf_t[idx])
+        raise
         return
 
     # [1, num_priors] best groundtruth for each prior
@@ -145,11 +146,9 @@ def match(cfg, truths, priors, variances, labels, landms, loc_t, conf_t, landm_t
         best_truth_idx[best_prior_idx[j]] = j
     matches = truths[best_truth_idx]            # Shape: [num_priors,4] 此处为每一个anchor对应的bbox取出来
     conf = labels[best_truth_idx]               # Shape: [num_priors]
-    invalid_face_prior = ((best_truth_overlap < cfg['face_overlap_threshold']) & (conf != cfg['human_class_id']))
-    conf[invalid_face_prior] = 0 # label as background
-    invalid_human_prior = ((best_truth_overlap < cfg['human_overlap_threshold']) & (conf == cfg['human_class_id']))
-    conf[invalid_human_prior] = 0 # label as background
-
+    invalid_obj_prior = (best_truth_overlap < cfg['obj_overlap_threshold'])
+    conf[invalid_obj_prior] = 0  # label as background
+    
     loc = encode(matches, priors, variances)
 
     matches_landm = landms[best_truth_idx]

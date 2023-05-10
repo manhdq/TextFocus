@@ -24,8 +24,8 @@ data:
   #   0 - Background
   #   1 - Text
 
-  batch_size: 8
-  val_batch_size: 8
+  batch_size: 2
+  val_batch_size: 2
   num_workers: 2
   val_num_workers: 2
 
@@ -34,8 +34,8 @@ data:
   # dont_care_high: 90
   # small_threshold: 25
   dont_care_low: 3
-  dont_care_high: 50
-  small_threshold: 15
+  dont_care_high: 200
+  small_threshold: 50
 
   # Augmentation
   brighten_param: [-32, 32]
@@ -63,7 +63,7 @@ data:
 
 
 train:
-  id: demo
+  id: total-text-train
   load_weights_only: False
   start_from_epoch: 0
   log_graph: False
@@ -79,11 +79,9 @@ train:
   foc_weight: 1.0
 
   # Criterion
-  face_overlap_threshold: 0.35
-  human_overlap_threshold: 0.5
+  obj_overlap_threshold: 0.35
   bg_class_id: 0
-  mr_class_id: 1
-  human_class_id: 5
+  fg_class_id: 1
   negpos_ratio: 7 # The ratio between negative and positive samples used in the hard-negative-mining strategy
   focal_gamma: 1.0
   min_num_neg: 2000

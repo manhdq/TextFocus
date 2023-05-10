@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=0 \
 python -m train \
     --train-json-path /home/ubuntu/Documents/working/pixtaVN/RA/data/total-text/focus_data/train.json \
     --val-json-path /home/ubuntu/Documents/working/pixtaVN/RA/data/total-text/focus_data/test.json \

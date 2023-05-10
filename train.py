@@ -18,6 +18,7 @@ set_random_seed(42, use_cuda=True)
 def main():
     ##### GET CONFIGURATION #####
     args = train_parser()
+    device = 'cuda' if not args.no_cuda and torch.cuda.is_available() else 'cpu'
 
     with open(args.cfg_path) as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
@@ -53,8 +54,6 @@ def main():
                                        mixup_cfg=data_cfg['mixup'],
                                        train_bbox_iof_threshold=data_cfg['train_bbox_iof_threshold'],
                                        train_min_num_landmarks=data_cfg['train_min_num_landmarks'])
-    train_dataset[0]
-    exit()
     val_dataset = FocusRetinaDataset(json_path=args.val_json_path,
                                      root_path=args.image_val_dir,
                                      aug=data_aug,
@@ -81,9 +80,9 @@ def main():
                         exclude_top_retinaface=args.exclude_top_retinaface)
     ##TODO: Modify for dynamic device selection
     if torch.cuda.device_count() > 1:
-        model = torch.nn.DataParallel(model).cuda()
+        model = torch.nn.DataParallel(model).to(device)
     else:
-        model = model.cuda()
+        model = model.to(device)
     show_params_gflops(model,
                        (3, data_cfg['image_size'], data_cfg['image_size']),
                        print_layer=False)
@@ -94,13 +93,14 @@ def main():
                                     data_cfg['image_size']),
                         to_tensor=True)
     priors = priorbox.generate()
-    priors = priors.cuda()
+    priors = priors.to(device)
 
     ##### CREATE CRITERION #####
     criterion = RetinaFocusLoss(num_classes=retinafocus_cfg['retinaface']['num_classes'],
                                 neg_pos=train_cfg['negpos_ratio'],
                                 variance=train_cfg['variance'],
-                                cfg=train_cfg)
+                                cfg=train_cfg,
+                                device=device)
 
     ##### CREATE OPTIMIZER #####
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
@@ -118,6 +118,7 @@ def main():
         train_cfg=train_cfg,
         data_cfg=data_cfg,
         model_cfg=model_cfg,
+        device=device,
         checkpoint_path=args.checkpoint_path
     )
     trainer.fit(train_dataloader, val_dataloader)

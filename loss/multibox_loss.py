@@ -1,3 +1,4 @@
+from os import device_encoding
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,6 +6,7 @@ import torch.nn.functional as F
 from utils.box_utils import match, log_sum_exp
 
 
+##TODO: Ignore training object too tiny or too large in specific chip
 class MultiBoxLoss(nn.Module):
     ''' Adapted from SSD Weighted Loss Function
     Compute Targets:
@@ -32,13 +34,15 @@ class MultiBoxLoss(nn.Module):
                  num_classes,
                  neg_pos,
                  variance,
-                 cfg):
+                 cfg,
+                 device='cuda'):
         super(MultiBoxLoss, self).__init__()
 
         self.num_classes = num_classes
         self.negpos_ratio = neg_pos
         self.variance = variance
         self.cfg = cfg
+        self.device = device
 
     def forward(self, predictions, priors, targets):
         '''Multibox Loss
@@ -84,8 +88,9 @@ class MultiBoxLoss(nn.Module):
                     landm_t,
                     valid_lm_mask,
                     idx)
-                truths, defaults, labels, landms = map(
-                        self._to_cuda, [truths, defaults, labels, landms])
+                if self.device == 'cuda':
+                    truths, defaults, labels, landms = map(
+                            self._to_cuda, [truths, defaults, labels, landms])
             else:
                 match(self.cfg,
                       truths,
@@ -99,12 +104,14 @@ class MultiBoxLoss(nn.Module):
                       valid_lm_mask,
                       idx)
         
-        loc_t, conf_t, landm_t, valid_lm_mask = map(self._to_cuda, [loc_t, conf_t, landm_t, valid_lm_mask])
-
+        if self.device == 'cuda':
+            loc_t, conf_t, landm_t, valid_lm_mask = map(self._to_cuda, [loc_t, conf_t, landm_t, valid_lm_mask])
+        
         # Compute landm loss (Smooth L1)
         # Shape: [batch,num_priors,10]
         ##TODO: Only train landmarks on MR label (class == 1)
-        pos1 = conf_t == torch.tensor(self.cfg['mr_class_id']).cuda()
+        ##TODO: Set option landmarks training (this auto enable train for text)
+        pos1 = conf_t == torch.tensor(self.cfg['fg_class_id']).to(self.device)
         pos1 = torch.logical_and(pos1, valid_lm_mask)
         num_pos_landm = pos1.long().sum(1, keepdim=True)
         N1 = max(num_pos_landm.data.sum().float(), 1)
@@ -114,14 +121,15 @@ class MultiBoxLoss(nn.Module):
         loss_landm = F.smooth_l1_loss(landm_p, landm_t, reduction='sum')
 
         class_t = conf_t.clone()
-        pos = conf_t != torch.tensor(self.cfg['bg_class_id']).cuda()
+        pos = conf_t != torch.tensor(self.cfg['bg_class_id']).to(self.device)
         conf_t[pos] = 1
 
         # Compute localization loss (Smooth L1)
         # Shape: [batch,num_priors,4]
         # Compute localization loss for all classes except background (class_id == 0)
         # Positive labels (not background)
-        pos = conf_t != torch.tensor(0).cuda()
+        ##TODO: Calculate loss in normalized form ??
+        pos = conf_t != torch.tensor(0).to(self.device)
         pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_data)
         loc_p = loc_data[pos_idx].view(-1, 4)
         loc_t = loc_t[pos_idx].view(-1, 4)

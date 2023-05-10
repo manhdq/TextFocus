@@ -11,11 +11,13 @@ class RetinaFocusLoss(MultiBoxLoss):
                  num_classes,
                  neg_pos,
                  variance,
-                 cfg):
+                 cfg,
+                 device='cuda'):
         super().__init__(num_classes=num_classes,
                          neg_pos=neg_pos,
                          variance=variance,
-                         cfg=cfg)
+                         cfg=cfg,
+                         device=device)
 
         self.focus_criterion = FocalLoss(gamma=cfg['focal_gamma'], ignore_index=-1)
 

@@ -128,9 +128,7 @@ class FocusRetinaDataset(Dataset):
 
         # Create focus mask
         mask, flattened_mask = self._prepare_mask(mixed_chip, mixed_bbox)
-        print(mask.shape)
-        print(flattened_mask.shape)
-        exit()
+
         # Create chip label base on all bboxes label
         chip_label = 1 if 1 in mixed_label else 0
 
@@ -146,6 +144,7 @@ class FocusRetinaDataset(Dataset):
                 'mask': mask,
                 'chip_label': chip_label
             }
+        ##TODO: Normalize mixed_chip
         return mixed_chip.transpose(2, 0, 1), mixed_bbox, mixed_label, mixed_lm, flattened_mask, chip_label, ori_data
 
     def _prepare_mask(self, chip, bbox):
@@ -184,10 +183,6 @@ def focus_retina_collate(batch):
         chip, bbox, label, lm, mask, chip_label, ori_data = sample
 
         imgs.append(torch.from_numpy(chip))
-
-        area_sqrt = np.sqrt((bbox[:, 2] - bbox[:, 0]) * (bbox[:, 3] - bbox[:, 1]))
-        # 0.18 ~ 840*0.18 ~ 150 pixel
-        label[(label == 1).squeeze() & (area_sqrt > 0.18)] = 5
 
         target = np.concatenate((bbox, lm, label), axis=-1)  # 4+10+1=15
         targets.append(torch.from_numpy(target))

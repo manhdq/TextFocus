@@ -195,6 +195,8 @@ def train_parser():
                         help='Exclude loading weights from top layers \
                              (BboxHead, ClassHead, LandmarkHead) of the RetinaFace model.')
     parser.add_argument('--checkpoint-path', type=str)
+    parser.add_argument('--no-cuda', action='store_true',
+                        help='do not using cuda')
 
     args = parser.parse_args()
     return args
