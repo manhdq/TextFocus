@@ -220,6 +220,8 @@ def infer_parser():
                         help='Use early stopping to save inferene time')
     parser.add_argument('--model-type', type=str,
                         help='Type of model [torch, onnx].')
+    parser.add_argument('--no-cuda', action='store_true',
+                        help='do not using cuda')
 
     args = parser.parse_args()
     return args

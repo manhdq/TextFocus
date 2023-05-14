@@ -82,7 +82,7 @@ class DetectionAugmentation():
         # because we will assign crop size depend on size of image we forward
         self.center_crop = CenterCropExt(None, None)
 
-    def train_augmentation(self, ori_chip, ori_bbox, ori_label, ori_lm, ratio, bbox_iof_threshold, min_num_landmarks):
+    def train_augmentations(self, ori_chip, ori_bbox, ori_label, ori_lm, ratio, bbox_iof_threshold, min_num_landmarks):
         '''
         Augmentation used in training process
         '''
@@ -117,7 +117,7 @@ class DetectionAugmentation():
 
         return chip, bbox, label, lm
 
-    def val_augmentation(self, ori_chip, ori_bbox, ori_label, ori_lm):
+    def val_augmentations(self, ori_chip, ori_bbox, ori_label, ori_lm):
         '''
         Augmentation used in validation process
         '''

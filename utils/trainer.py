@@ -71,7 +71,7 @@ class Trainer(object):
         self.best_det_map = 0
         self.best_foc_dice = 0
         self.best_foc_iou = 0
-        self.best_foc_foc_diff = np.inf
+        self.best_foc_diff = np.inf
         ##TODO: Move alpha to config file ??
         self.alpha = 0.9  # Mean over 10 iters
 
@@ -337,10 +337,10 @@ class Trainer(object):
             masks = []
 
             for batch_val_idx, (image_batch, targets_batch, mask_batch, _, _) in enumerate(val_pbar):
-                image_batch = image_batch.cuda()
-                targets_batch = [target_batch.cuda()
+                image_batch = image_batch.to(self.device)
+                targets_batch = [target_batch.to(self.device)
                                 for target_batch in targets_batch]
-                mask_batch = mask_batch.cuda()
+                mask_batch = mask_batch.to(self.device)
 
                 image_height, image_width = image_batch.shape[-2:]
                 box_scale = np.array([image_width, image_height] * 2)
@@ -352,6 +352,7 @@ class Trainer(object):
                     map(self._convert_to_numpy, preds)
 
                 # Softmax the predictions
+                ##TODO: fix this double softmax
                 cls_preds = softmax(cls_preds, axis=-1)
                 conf_preds = softmax(conf_preds, axis=-1)
                 foc_preds = softmax(foc_preds, axis=1)

@@ -103,7 +103,7 @@ class FocusRetinaDataset(Dataset):
 
             # Image augmentation
             if self.phase == 'train':
-                chip, bbox, label, lm = self.augmentation.train_augmentation(
+                chip, bbox, label, lm = self.augmentation.train_augmentations(
                     ori_chip, ori_bbox, ori_label, ori_lm, ratio, self.train_bbox_iof_threshold, self.train_min_num_landmarks)
             else:
                 chip, bbox, label, lm = self.augmentation.val_augmentations(
