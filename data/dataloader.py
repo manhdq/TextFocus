@@ -193,3 +193,51 @@ def focus_retina_collate(batch):
     return (torch.stack(imgs, 0), targets, torch.stack(masks, 0), chip_labels_list, ori_data_list)
 
 
+class InferenceDataloader():
+    """
+    Dataloaderused in Inference process
+    """
+    def __init__(self, test_folder_path, focus_gen=None, gt_path=None):
+        self.chip_list = []
+        if gt_path is not None:
+            with open(gt_path) as file:
+                img_list = json.load(file)
+            for img in img_list:
+                self.chip_list.append(img['image_chips'])
+        self.focus_gen = focus_gen
+        self.img_paths = sorted(glob(os.path.join(test_folder_path, '*')))
+        self.idx = 0
+
+    def __len__(self):
+        return len(self.img_paths)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.idx == self.__len__():
+            raise StopIteration
+        return self._load_data(self.img_paths[self.idx])
+
+    def _load_data(self, img_path):
+        self.idx += 1
+        img_name = img_path.split(os.sep)[-1]
+        img = cv2.imread(img_path)
+
+        for chip in self.chip_list:
+            if img_name == chip['chip_name'].split(os.sep)[-1]:
+                chip_bbox, chip_lm, chip_bbox_label = [], [], []
+                chip_label = 0
+                for bb in chip['chip_valid_bboxes']:
+                    chip_bbox.append([bb['bbox_x1'],
+                                      bb['bbox_y1'],
+                                      bb['bbox_x2'],
+                                      bb['bbox_y2']])
+                    if 'lm' in bb:
+                        chip_lm.append([lm_p for lm in bb['lm'] for lm_p in lm ])
+                    else:
+                        chip_lm.append([[-1, -1]] * 5)
+                    chip_bbox_label.append(bb['class'])
+                    chip_label = 1 if bb['class'] == 1 else chip_label
+                return img_name, img, np.array(chip_bbox), np.array(chip_lm), np.array(chip_bbox_label), chip_label
+        return img_name, img, None, None, None, None

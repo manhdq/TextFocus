@@ -231,39 +231,18 @@ def demo_parser():
     '''
     Parse arguments of the demo
     '''
-    parser = argparse.ArgumentParser(description='Review Assistant')
-    parser.add_argument('--host', type=str, help='Main host')
-    parser.add_argument('--port', type=str, help='Port to run demo')
-    parser.add_argument('--show-image-port', type=str, default='9000',
-                        help='Port to show original image')
-    parser.add_argument('--debug', action='store_true', help='Debug mode')
-    parser.add_argument('--input-html', type=str,
-                        help='Path to input html template')
-    parser.add_argument('--preds-html', type=str,
-                        help='Path to all preds html template')
-    parser.add_argument('--img-root', type=str,
-                        help='Path to root image folder')
-    parser.add_argument('--ori-relative-path', type=str, default='datasets/review/',
-                        help='Path to relative original images')
-    parser.add_argument('--infer-results', type=str,
-                        help='Path to infer results json file')
-    parser.add_argument('--n-demo-show', type=int,
-                        help='Num of showing demo sample')
-    parser.add_argument('--upload-folder', type=str,
-                        help='Path to folder contain uploaded file')
-    # Arguments needed to run infer
-    parser.add_argument('--test-json-path', type=str,
-                        help='Testing dataset.')
-    parser.add_argument('--image-dir', type=str,
-                        help='The directory that contains images.')
-    parser.add_argument('--model-path', type=str,
+    parser = argparse.ArgumentParser(description='RetinaFocus demo script.')
+    parser.add_argument('--model-path', type=str, required=True,
                         help='Path to RetinaFocus model.')
-    parser.add_argument('--cfg-path', type=str,
-                        help='Path to config file')
-    parser.add_argument('--save-dir', type=str,
-                        help='Path to save pred directory')
+    parser.add_argument('--cfg-path', type=str, required=True)
+    parser.add_argument('--save-dir', type=str, required=True,
+                        help='Path to save output images')
     parser.add_argument('--model-type', type=str,
                         help='Type of model [torch, onnx].')
+    parser.add_argument('--no-cuda', action='store_true',
+                        help='do not using cuda')
+    parser.add_argument('--img-root', type=str,
+                        help="Image root folder / file for demo")
 
     args = parser.parse_args()
     return args

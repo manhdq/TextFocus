@@ -1,13 +1,13 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=0 \
 python -m infer \
-    --cfg-path ./configs/retinafocus_configs_infer.yml \
-    --model-path /home/tungnguyendinh/review_assistant/project/snapshots/large_mr_no_mr_data_max_0.4_gen_min_size/best_loss.pth \
-    --image-dir /home/tungnguyendinh/review_assistant/project/demo_upload/ \
-    --save-dir infer_results/ra_errors \
+    --cfg-path ./configs/retinafocus_totaltext_configs_infer.yml \
+    --model-path /home/ubuntu/Documents/working/pixtaVN/RA/AutoFocus_TT/ckpts/best_det_map.pth \
+    --image-dir /home/ubuntu/Documents/working/pixtaVN/RA/data/total-text/focus_data/test_ori \
+    --save-dir infer_results/totaltext_errors \
     --model-type torch \
-    --test-json-path /home/tungnguyendinh/review_assistant/support/datasets/ndt_pixta/ra_errors/pixta_test_ori.json \
+    --test-json-path /home/ubuntu/Documents/working/pixtaVN/RA/data/total-text/focus_data/test_ori.json \
     # --image-dir /home/tungnguyendinh/review_assistant/support/datasets/ndt_pixta/ra_errors/test_ori \
     # --early-stop
     # --model-type torch \
