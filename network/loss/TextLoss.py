@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from config_lib.config import config as cfg
-from network.loss.Seg_loss import SegmentLoss
 from network.loss.Reg_loss import PolyMatchingLoss
 import torch.nn.functional as F
 
@@ -43,7 +42,6 @@ class TextLoss(nn.Module):
                 nega_loss = torch.mean(torch.topk(pre_loss[i], 100)[0])
                 average_number += 100
                 sum_loss += nega_loss
-            # sum_loss += loss/average_number
 
         return sum_loss / batch_size
 

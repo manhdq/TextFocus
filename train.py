@@ -8,7 +8,7 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data as data
 from torch.optim import lr_scheduler
 from dataloader import CTW1500Text_New
-from network.loss import TextLoss
+from network.loss.TextLoss import TextLoss
 from network.textnet import TextNet
 from utils.augmentation import Augmentation
 from utils.misc import AverageMeter, mkdirs, to_device
@@ -34,8 +34,8 @@ def save_model(model, epoch, lr, optimzer):
     state_dict = {
         "lr": lr,
         "epoch": epoch,
-        "model": model.state_dict() if not cfg.mgpu else model.module.state_dict()
-        # 'optimizer': optimzer.state_dict()
+        "model": model.state_dict() if not cfg.mgpu else model.module.state_dict(),
+        'optimizer': optimzer.state_dict()
     }
     torch.save(state_dict, save_path)
 

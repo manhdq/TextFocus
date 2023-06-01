@@ -166,8 +166,8 @@ class BaseOptions(object):
             type=str,
             choices=[
                 "vgg",
-                "resnet50",
                 "resnet18",
+                "resnet50",
                 "deformable_resnet18",
                 "deformable_resnet50",
             ],

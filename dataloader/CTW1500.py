@@ -55,34 +55,13 @@ class CTW1500Text_New(TextDataset):
         :param gt_path: (str), mat file path
         :return: (list), TextInstance
         """
-
-        lines = read_lines(gt_path + ".txt")
+        lines = read_lines(gt_path)
         polygons = []
         for line in lines:
             line = line.split(",")
-            gt = list(map(int, line[:-1]))
-            pts = np.stack([gt[0::2], gt[1::2]]).T.astype(np.int32)
-            label = line[-1].split("###")[-1].replace("###", "#")
+            pts = np.stack(line[5:-1]).T.astype(np.int32)
+            label = line[-1].replace("\n", "")
             polygons.append(TextInstance(pts, "c", label))
-
-        return polygons
-
-    @staticmethod
-    def parse_carve_xml(gt_path):
-        """
-        .mat file parser
-        :param gt_path: (str), mat file path
-        :return: (list), TextInstance
-        """
-        root = ET.parse(gt_path + ".xml").getroot()
-
-        polygons = []
-        for tag in root.findall("image/box"):
-            label = tag.find("label").text.replace("###", "#")
-            gt = list(map(int, tag.find("segs").text.split(",")))
-            pts = np.stack([gt[0::2], gt[1::2]]).T.astype(np.int32)
-            polygons.append(TextInstance(pts, "c", label))
-
         return polygons
 
     def load_img_gt(self, item):
