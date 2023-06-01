@@ -37,7 +37,7 @@ if __name__ == '__main__':
     )
 
     trainset = DeployDataset(
-        image_root='data/total-text/Images/Train',
+        image_root='data/Images/train_images',
         transform=transform
     )
 

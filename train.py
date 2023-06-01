@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import torch.utils.data as data
 from torch.optim import lr_scheduler
-from dataloader import CTW1500Text_New
+from dataloader import TextData
 from network.loss.TextLoss import TextLoss
 from network.textnet import TextNet
 from utils.augmentation import Augmentation
@@ -130,8 +130,8 @@ def train(model, train_loader, criterion, scheduler, optimizer, epoch):
 def main():
     global lr
 
-    trainset = CTW1500Text_New(
-        data_root="./data/CTW1500",
+    trainset = TextData(
+        data_root="./data",
         is_training=True,
         load_memory=cfg.load_memory,
         transform=Augmentation(size=cfg.input_size, mean=cfg.means, std=cfg.stds),

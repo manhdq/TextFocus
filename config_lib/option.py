@@ -25,16 +25,16 @@ class BaseOptions(object):
         self.parser = argparse.ArgumentParser()
 
         # Basic opts
-        self.parser.add_argument(
-            "--exp_name",
-            default="CTW1500",
-            type=str,
-            choices=[
-                "CTW1500",
-                "ALL",
-            ],
-            help="Experiment name",
-        )
+        # self.parser.add_argument(
+        #     "--exp_name",
+        #     default="CTW1500",
+        #     type=str,
+        #     choices=[
+        #         "CTW1500",
+        #         "ALL",
+        #     ],
+        #     help="Experiment name",
+        # )
         self.parser.add_argument("--gpu", default="0", help="Set gpu id", type=str)
         self.parser.add_argument(
             "--resume", default=None, type=str, help="Path to target resume checkpoint"

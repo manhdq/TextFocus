@@ -1,7 +1,7 @@
-## CTW-1500 (new) 
+## All data(new) 
 
 ```
-├── CTW-1500
+├── data
 │   ├──Images
 │       ├── train_images
 │       ├── test_images

@@ -18,7 +18,7 @@ def read_lines(p):
     return f.readlines()
 
 
-class CTW1500Text_New(TextDataset):
+class TextData(TextDataset):
     def __init__(
         self,
         data_root,
@@ -132,8 +132,8 @@ if __name__ == "__main__":
 
     transform = Augmentation(size=640, mean=means, std=stds)
 
-    trainset = CTW1500Text_New(
-        data_root="./data/CTW1500", is_training=True, transform=transform
+    trainset = TextData(
+        data_root="./data", is_training=True, transform=transform
     )
 
     for idx in range(0, len(trainset)):

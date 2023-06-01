@@ -1,3 +1,3 @@
 from .dataloader import *
-from .CTW1500 import *
+from .text_data import *
 from .deploy import *
