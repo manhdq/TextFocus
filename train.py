@@ -1,7 +1,9 @@
 import os
 import gc
+import warnings
 import time
 import numpy as np
+warnings.filterwarnings("ignore")
 
 import torch
 import torch.nn as nn

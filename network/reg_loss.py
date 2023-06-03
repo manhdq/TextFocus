@@ -34,6 +34,7 @@ class PolyMatchingLoss(nn.Module):
         gt_expand = torch.gather(gt, 1, feature_id).view(batch_size, self.pnum, self.pnum, 2)
         pred_expand = pred.unsqueeze(1)
 
+        ##TODO: UserWarning: Using a target size (torch.Size([6, 20, 20, 2])) that is different to the input size (torch.Size([6, 1, 20, 2])). This will likely lead to incorrect results due to broadcasting. Please ensure they have the same size.
         if self.loss_type == "L2":
             dis = self.L2_loss(pred_expand, gt_expand)
             dis = dis.sum(3).sqrt().mean(2)
