@@ -6,6 +6,7 @@ import torch.nn.functional as F
 
 from cfglib.config import config as cfg
 from network.reg_loss import PolyMatchingLoss
+from network.focal_loss import FocalLoss
 
 
 class TextLoss(nn.Module):
@@ -15,6 +16,9 @@ class TextLoss(nn.Module):
         self.BCE_loss = torch.nn.BCELoss(reduce=False, size_average=False)
         self.PolyMatchingLoss = PolyMatchingLoss(cfg.num_points, cfg.device)
         self.KL_loss = torch.nn.KLDivLoss(reduce=False, size_average=False)
+
+        # Focus loss
+        self.focus_loss = FocalLoss(gamma=cfg.focal_gamma, ignore_index=-1)
 
     @staticmethod
     def single_image_loss(pre_loss, loss_label):
@@ -165,7 +169,11 @@ class TextLoss(nn.Module):
             'angle_loss': theta*angle_loss,
             'point_loss': gama*point_loss,
             'energy_loss': gama*energy_loss,
-
         }
+
+        if cfg.enable_autofocus:
+            # calculate loss for autofocus
+            autofocus_preds = output_dict["autofocus_preds"]
+            focus_mask = input_dict["focus_mask"]
 
         return loss_dict

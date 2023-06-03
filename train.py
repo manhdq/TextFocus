@@ -19,7 +19,7 @@ from utils.schedule import FixLR
 from utils.misc import AverageMeter, mkdirs, to_device
 from utils.visualize import visualize_network_output
 from dataset import CTW1500Text
-from network.textnet import TextBPNPlusPlusNet
+from network.textnet import TextBPNPlusPlusNet, TextBPNFocus
 from network.loss import TextLoss
 
 
@@ -160,7 +160,9 @@ def main():
     )
     
     # Model
-    model = TextBPNPlusPlusNet(backbone=cfg.net, is_training=True)
+    # model = TextBPNPlusPlusNet(backbone=cfg.net, is_training=True)
+    model = TextBPNFocus(backbone=cfg.net, is_training=True,
+                        using_autofocus=cfg.enable_autofocus)
     model = model.to(cfg.device)
     criterion = TextLoss()
     if cfg.mgpu:

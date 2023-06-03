@@ -65,6 +65,9 @@ config.cls_threshold = 0.8
 # Contour approximation factor
 config.approx_factor = 0.004
 
+# Focus loss options
+config.focal_gamma = 1.0
+
 
 def update_config(config, extra_config):
     for k, v in vars(extra_config).items():

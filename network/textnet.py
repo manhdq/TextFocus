@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from cfglib.config import config as cfg
 from network.layers.model_block import FPN
 from network.layers.transformer import Transformer
+from network.layers.autofocus import AutoFocus
 from network.layers.gcn_utils import get_node_feature
 from utils.misc import get_sample_point
 
@@ -153,5 +154,90 @@ class TextBPNPlusPlusNet(nn.Module):
         output['py_preds'] = py_preds
         output['inds'] = inds
         output['confidences'] = confidences
+
+        return output
+
+
+##TODO: Add `load_model` func
+class TextBPNFocus(nn.Module):
+    """
+    The implementation of the Text model with Autofocus ability.
+    The code will be while the same as `TextBPN++` but with adding AutoFocus func.
+    
+    TextBPNFocus = TextBPN++ + AutoFocus + Magic
+    """
+    def __init__(self, backbone='vgg', is_training=True,
+                using_autofocus=True, focus_layer_choice=2):
+        super().__init__()
+
+        self.TextBPN = TextBPNPlusPlusNet(backbone, is_training)
+        self.is_training = is_training
+
+        self.using_autofocus = using_autofocus
+
+        if self.using_autofocus:
+            ##TODO: Make this option param dynamic
+            # 0: up1
+            # 1: up2
+            # 2: up3
+            # 3: up4
+            # 4: up5
+            self.focus_layer_choice = focus_layer_choice
+            autofocus_in_channels = [
+                32, 32, 64, 128, 256
+            ][self.focus_layer_choice]
+            self.autofocus = AutoFocus(autofocus_in_channels)
+
+    def forward(self, input_dict, test_speed=False):
+        output = {}
+        b, c, h, w = input_dict["img"].shape
+        if self.is_training or cfg.exp_name in ['ArT', 'MLT2017', "MLT2019"] or test_speed:
+            image = input_dict["img"]
+        else:
+            image = torch.zeros((b, c, cfg.test_size[1], cfg.test_size[0]), dtype=torch.float32).to(cfg.device)
+            image[:, :, :h, :w] = input_dict["img"][:, :, :, :]
+
+        up1, up2, up3, up4, up5 = self.TextBPN.fpn(image)
+        # print(up1.shape)
+        # print(up2.shape)
+        # print(up3.shape)
+        # print(up4.shape)
+        # print(up5.shape)
+        # exit()
+        up1 = up1[:, :, :h // cfg.scale, :w // cfg.scale]
+
+        preds = self.TextBPN.seg_head(up1)
+        fy_preds = torch.cat([torch.sigmoid(preds[:, 0:2, :, :]), preds[:, 2:4, :, :]], dim=1)
+        cnn_feats = torch.cat([up1, fy_preds], dim=1)
+
+        py_preds, inds, confidences = self.TextBPN.BPN(cnn_feats, input=input_dict, seg_preds=fy_preds, switch="gt")
+
+        output['fy_preds'] = fy_preds
+        output['py_preds'] = py_preds
+        output['inds'] = inds
+        output['confidences'] = confidences
+
+        if self.using_autofocus:
+            # Feature map extraction for Autofocus phase
+            # Get scale
+            if self.focus_layer_choice < 3:  # up1, up2, up3
+                focus_scale = cfg.scale  # 4
+            elif self.focus_layer_choice == 3:  # up4
+                focus_scale = cfg.scale * 2  # 8
+            elif self.focus_layer_choice == 4:  # up5
+                focus_scale = cfg.scale * 4  # 16
+            else:
+                raise
+
+            focus_layer_feat = [
+                up1, up2, up3, up4, up5
+            ][self.focus_layer_choice]
+            autofocus_out = self.autofocus(focus_layer_feat)
+            if self.is_training:
+                autofocus_out = torch.reshape(autofocus_out,
+                                        shape=(autofocus_out.shape[0], 2, -1))
+            else:
+                autofocus_out = F.softmax(autofocus_out, dim=1)
+            output['autofocus_preds'] = autofocus_out
 
         return output

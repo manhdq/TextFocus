@@ -173,6 +173,12 @@ class BaseOptions(object):
             ],
             help="Network architecture",
         )
+        # Autofocus
+        self.parser.add_argument(
+            "--enable_autofocus",
+            action="store_true",
+            help="Enable AutoFocus for training",
+        )
         # Data args
         self.parser.add_argument(
             "--load_memory", default=False, type=str2bool, help="Load data into memory"

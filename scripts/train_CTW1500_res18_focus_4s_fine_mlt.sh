@@ -2,6 +2,7 @@
 CUDA_VISIBLE_DEVICES=0 python train.py \
                             --exp_name CTW1500 \
                             --net resnet18 \
+                            --enable_autofocus \
                             --scale 4 \
                             --max_epoch 660 \
                             --batch_size 1 \
