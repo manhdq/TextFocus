@@ -3,12 +3,12 @@ import time
 import torch
 import torch.backends.cudnn as cudnn
 import torch.utils.data as data
-from dataloader import Ctw1500Text_New
+from dataloader.text_data import TextData
 from network.textnet import TextNet
 from utils.augmentation import BaseTransform
-from utils.misc import to_device, mkdirs
 from config_lib.config import config as cfg, update_config, print_config
 from config_lib.option import BaseOptions
+from utils.misc import to_device, mkdirs
 
 import multiprocessing
 
@@ -56,12 +56,46 @@ def inference(model, test_loader, output_dir):
 
 def main(vis_dir_path):
     osmkdir(vis_dir_path)
+    if cfg.exp_name == "Totaltext":
+        testset = TextData(
+            data_root="data/total-text-mat",
+            ignore_list=None,
+            is_training=False,
+            transform=BaseTransform(size=cfg.test_size, mean=cfg.means, std=cfg.stds),
+        )
 
-    testset = Ctw1500Text_New(
-        data_root="data/CTW1500",
-        is_training=False,
-        transform=BaseTransform(size=cfg.test_size, mean=cfg.means, std=cfg.stds),
-    )
+    elif cfg.exp_name == "Ctw1500":
+        testset = TextData(
+            data_root="data/ctw1500",
+            is_training=False,
+            transform=BaseTransform(size=cfg.test_size, mean=cfg.means, std=cfg.stds),
+        )
+    elif cfg.exp_name == "Icdar2015":
+        testset = TextData(
+            data_root="data/Icdar2015",
+            is_training=False,
+            transform=BaseTransform(size=cfg.test_size, mean=cfg.means, std=cfg.stds),
+        )
+    elif cfg.exp_name == "MLT2017":
+        testset = TextData(
+            data_root="data/MLT2017",
+            is_training=False,
+            transform=BaseTransform(size=cfg.test_size, mean=cfg.means, std=cfg.stds),
+        )
+    elif cfg.exp_name == "TD500":
+        testset = TextData(
+            data_root="data/TD500",
+            is_training=False,
+            transform=BaseTransform(size=cfg.test_size, mean=cfg.means, std=cfg.stds),
+        )
+    elif cfg.exp_name == "ArT":
+        testset = TextData(
+            data_root="data/ArT",
+            is_training=False,
+            transform=BaseTransform(size=cfg.test_size, mean=cfg.means, std=cfg.stds),
+        )
+    else:
+        print("{} is not justify".format(cfg.exp_name))
 
     if cfg.cuda:
         cudnn.benchmark = True
@@ -79,20 +113,20 @@ def main(vis_dir_path):
     model_path = os.path.join(
         cfg.save_dir,
         cfg.exp_name,
-        "TextBPN_{}_{}.pth".format(model.backbone_name, cfg.checkepoch),
+        "{}_{}.pth".format(model.backbone_name, cfg.checkepoch),
     )
 
     model.load_model(model_path)
-    model = model.to(cfg.device)  # copy to cuda
+    model = model.to(cfg.device)
     model.eval()
     with torch.no_grad():
-        print("Start testing TextBPN++.")
+        print("Start testing model")
         output_dir = os.path.join(cfg.output_dir, cfg.exp_name)
         inference(model, test_loader, output_dir)
 
 
 if __name__ == "__main__":
-    # parse arguments
+    # Parse arguments
     option = BaseOptions()
     args = option.initialize()
 
@@ -103,5 +137,5 @@ if __name__ == "__main__":
 
     if not os.path.exists(vis_dir):
         mkdirs(vis_dir)
-    # main
+
     main(vis_dir)

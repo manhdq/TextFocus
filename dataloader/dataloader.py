@@ -211,7 +211,7 @@ class TextDataset(object):
             dmp = ndimg.distance_transform_edt(inst_mask)  # distance transform
 
             if (
-                polygon.text == "#"
+                polygon.text == ''
                 or np.max(dmp) < self.min_text_size
                 or np.sum(inst_mask) < 150
             ):
@@ -297,6 +297,38 @@ class TextDataset(object):
             proposal_points,
             ignore_tags,
         )
+
+    # def get_val_data(self, image, polygons=None, image_id=None, image_path=None):
+    #     H, W, _ = image.shape
+    #     if self.transform:
+    #         image, polygons = self.transform(image, polygons)
+
+    #     # Max point per polygon for annotation
+    #     points = np.zeros((cfg.max_annotation, 20, 2))
+    #     length = np.zeros(cfg.max_annotation, dtype=int)
+    #     label_tag = np.zeros(cfg.max_annotation, dtype=int)
+    #     if polygons is not None:
+    #         for i, polygon in enumerate(polygons):
+    #             pts = polygon.points
+    #             points[i, : pts.shape[0]] = polygon.points
+    #             length[i] = pts.shape[0]
+    #             if polygon.text != "":
+    #                 label_tag[i] = 1
+    #             else:
+    #                 label_tag[i] = -1
+
+    #     meta = {
+    #         "image_id": image_id,
+    #         "image_path": image_path,
+    #         "annotation": points,
+    #         "n_annotation": length,
+    #         "label_tag": label_tag,
+    #         "Height": H,
+    #         "Width": W,
+    #     }
+
+    #     image = image.tranpose(2, 0, 1)
+    #     return image.meta
 
     def get_test_data(self, image, polygons=None, image_id=None, image_path=None):
         H, W, _ = image.shape

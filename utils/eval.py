@@ -176,8 +176,6 @@ def deal_eval_icdar15(debug=False):
 
     print("End.")
 
-    pass
-
 
 def deal_eval_TD500(debug=False):
     # compute DetEval
