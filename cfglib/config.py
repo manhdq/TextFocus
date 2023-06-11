@@ -68,6 +68,13 @@ config.approx_factor = 0.004
 # Focus loss options
 config.focal_gamma = 1.0
 
+# # Autofocus options
+# config.autofocus = EasyDict()
+# config.autofocus.dont_care_low = 3
+# config.autofocus.dont_care_high = 200
+# config.autofocus.small_threshold = 50
+# config.autofocus.stride = 4  ##TODO: Replace this to model `scale`
+
 
 def update_config(config, extra_config):
     for k, v in vars(extra_config).items():

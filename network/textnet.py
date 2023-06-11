@@ -171,6 +171,7 @@ class TextBPNFocus(nn.Module):
         super().__init__()
 
         self.TextBPN = TextBPNPlusPlusNet(backbone, is_training)
+        self.backbone_name = backbone
         self.is_training = is_training
 
         self.using_autofocus = using_autofocus

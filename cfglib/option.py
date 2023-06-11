@@ -215,6 +215,27 @@ class BaseOptions(object):
             "--img_root", default=None, type=str, help="Path to deploy images"
         )
 
+        # Autofocus params
+        self.parser.add_argument("--alpha", default=1.0, type=float,
+                                help="weight for classification loss")
+        self.parser.add_argument("--beta", default=3.0, type=float,
+                                help="weight for distance loss")
+        self.parser.add_argument("--theta", default=.5, type=float,
+                                help="weight for direction loss")
+        self.parser.add_argument("--gama", default=.05, type=float,
+                                help="weight for poly matching loss")
+        self.parser.add_argument("--foc_weight", default=1.0, type=float,
+                                help="weight for focus loss")
+
+        self.parser.add_argument("--autofocus_dont_care_low", default=3, type=float,
+                                help="ignored lower bound for autofocus mask")
+        self.parser.add_argument("--autofocus_dont_care_high", default=200, type=float,
+                                help="ignored upper bound for autofocus mask")
+        self.parser.add_argument("--autofocus_small_threshold", default=50, type=float,
+                                help="small threshold for autofocus mask")
+        self.parser.add_argument("--autofocus_stride", default=4, type=int,
+                                help="stride for autofocus mask")
+
     def parse(self, fixed=None):
         if fixed is not None:
             args = self.parser.parse_args(fixed)

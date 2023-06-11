@@ -1,5 +1,6 @@
 import copy
 import cv2
+import math
 import numpy as np
 from PIL import Image
 from scipy import ndimage as ndimg
@@ -14,6 +15,14 @@ def pil_load_img(path):
     image = Image.open(path)
     image = np.array(image)
     return image
+
+
+def points2box(points):
+    x1 = points[:, 0].min()
+    y1 = points[:, 1].min()
+    x2 = points[:, 0].max()
+    y2 = points[:, 1].max()
+    return np.array((x1, y1, x2, y2), dtype=points.dtype)
 
 
 class TextInstance(object):
@@ -45,6 +54,7 @@ class TextInstance(object):
             self.points = np.array(points)
         """
         self.points = np.array(points)
+        self.box = points2box(self.points)
 
     def get_sample_point(self, size=None):
         mask = np.zeros(size, np.uint8)
@@ -61,9 +71,10 @@ class TextInstance(object):
 
 
 class TextDataset(object):
-    def __init__(self, transform, is_training=False):
+    def __init__(self, transform, focus_gen=None, is_training=False):
         super().__init__()
         self.transform = transform
+        self.focus_gen = focus_gen
         self.is_training = is_training
         ##TODO: Modify this??
         self.min_text_size = 4
@@ -137,20 +148,69 @@ class TextDataset(object):
         return diff
 
     ##TODO:
-    # def visualize_gt(self, image, contours):
+    def visualize_gt(self, image, contours, focus_mask):
     
-    #     image_show = image.copy()
-    #     image_show = (image_show - image_show.min()) / (image_show.max() - image_show.min()) * 255
-    #     image_show = np.ascontiguousarray(image_show[:, :, ::-1]).astype(np.uint8)
+        image_show = image.copy()
+        h, w = image_show.shape[:2]
+        image_show = (image_show - image_show.min()) / (image_show.max() - image_show.min()) * 255
+        image_show = np.ascontiguousarray(image_show[:, :, ::-1]).astype(np.uint8)
 
-    #     image_show = cv2.polylines(image_show,
-    #                             [contour.points.astype(np.int) for contour in contours], True, (0, 0, 255), 3)
-    #     image_show = cv2.polylines(image_show,
-    #                             [contour.points.astype(np.int) for contour in contours], True, (0, 255, 0), 3)
+        # Add focus mask
+        focus_mask = cv2.resize(focus_mask.copy(), (w, h), interpolation=cv2.INTER_NEAREST)
+        overlay = image_show.copy()
+        mask_color_pos = (0, 255, 0)  # cyan
+        mask_color_neg = (0, 0, 255)  # red
+        overlay[:, :, 0][focus_mask == 1] = mask_color_pos[0] # Blue
+        overlay[:, :, 1][focus_mask == 1] = mask_color_pos[1] # Green
+        overlay[:, :, 2][focus_mask == 1] = mask_color_pos[2] # Red
+        overlay[:, :, 0][focus_mask == -1] = mask_color_neg[0] # Blue
+        overlay[:, :, 1][focus_mask == -1] = mask_color_neg[1] # Green
+        overlay[:, :, 2][focus_mask == -1] = mask_color_neg[2] # Red
+        image_show = cv2.addWeighted(overlay, 0.2, image_show, 0.8, 0)
 
-    #     show_gt = cv2.resize(image_show, (320, 320))
+        for contour in contours:
+            box = contour.box.astype(int)
+            image_show = cv2.rectangle(image_show, (box[0], box[1]), (box[2], box[3]),
+                                    (255, 0, 0), 1)
 
-    #     return show_gt
+        image_show = cv2.polylines(image_show,
+                                [contour.points.astype(np.int) for contour in contours], True, (0, 0, 255), 2)
+        image_show = cv2.polylines(image_show,
+                                [contour.points.astype(np.int) for contour in contours], True, (0, 255, 0), 2)
+
+        show_gt = cv2.resize(image_show, (320, 320))
+
+        return show_gt
+
+    def _norm_annotation(self, boxes, lms, img_size):
+        """
+        Scale bbox and lm with new image scale
+        """
+        w, h = img_size
+        boxes[:, 0::2] /= w
+        boxes[:, 1::2] /= h
+        # Normalize lm
+        lms[:, 0::2] /= w
+        lms[:, 1::2] /= h
+        return boxes, lms
+
+    def _prepare_focus_mask(self, img_size, boxes):
+        """
+        Prepare focus mask corresponding with new image size
+        """
+        ##TODO: adapt with `scale` in model
+        w, h = img_size
+        mask_w = math.ceil(w / self.focus_gen.stride)
+        mask_h = math.ceil(h / self.focus_gen.stride)
+        mask = np.zeros((mask_h, mask_w)).astype(np.long)
+        ##TODO: should we adapt this with lms??
+        for bb in boxes:
+            scaled_bb = bb * ([w, h] * 2)
+            mask = self.focus_gen.calculate_mask(
+                scaled_bb[0], scaled_bb[1], scaled_bb[2], scaled_bb[3], mask
+            )
+        flattened_mask = mask.reshape(mask.shape[0] * mask.shape[1])
+        return mask, flattened_mask
 
     def make_text_region(self, img, polygons):
         h, w = img.shape[0], img.shape[1]
@@ -178,11 +238,6 @@ class TextDataset(object):
                 ignore_tags,
             )
 
-        ##TODO:
-        # show_img = self.visualize_gt(img, polygons)
-        # cv2.imwrite("test.jpg", show_img)
-        # exit()
-
         ##TODO: sort the polygons by decensding area
         for idx, polygon in enumerate(polygons):
             if idx >= cfg.max_annotation:
@@ -199,7 +254,7 @@ class TextDataset(object):
             if (
                 polygon.text == "#"
                 or np.max(dmp) < self.min_text_size
-                or np.sum(inst_mask) < 150
+                or np.sum(inst_mask) < 150  ##TODO: should we change this??
             ):
                 cv2.fillPoly(train_mask, [polygon.points.astype(np.int32)], color=(0,))
                 ignore_tags[idx] = -1
@@ -228,6 +283,18 @@ class TextDataset(object):
         # diff = self.compute_direction_field((tr_mask == 0).astype(np.uint8), h, w)
         # direction_field[:, tr_mask == 0] = diff[:, tr_mask == 0]
 
+        # Get autofocus annotations
+        bboxes = np.array([polygon.box for polygon in polygons])
+        lms = np.array([polygon.points.reshape(-1) for polygon in polygons])
+        bboxes, lms = self._norm_annotation(bboxes, lms, (w, h))
+
+        focus_mask, flattened_focus_mask = self._prepare_focus_mask((w, h), bboxes)
+
+        ##TODO:
+        # show_img = self.visualize_gt(img, polygons, focus_mask)
+        # cv2.imwrite("test.jpg", show_img)
+        # exit()
+
         train_mask = np.clip(train_mask, 0, 1)
 
         return (
@@ -239,6 +306,11 @@ class TextDataset(object):
             gt_points,
             proposal_points,
             ignore_tags,
+            # Autofocus
+            bboxes,
+            lms,
+            focus_mask,
+            flattened_focus_mask,
         )
 
     def get_training_data(self, image, polygons, image_id=None, image_path=None):
@@ -248,9 +320,14 @@ class TextDataset(object):
             image, polygons = self.transform(
                 copy.deepcopy(image), copy.deepcopy(polygons)
             )
+            ##TODO: Get box for polygons, modify in `transform` later
+            # Get box for polygons
+            for polygon in polygons:
+                polygon.box = points2box(polygon.points)
 
         train_mask, tr_mask, distance_field, direction_field, \
-            weight_matrix, gt_points, proposal_points, ignore_tags = \
+            weight_matrix, gt_points, proposal_points, ignore_tags, \
+            bboxes, lms, focus_mask, flattened_focus_mask = \
                 self.make_text_region(image, polygons)
 
         # To pytorch channel sequence
@@ -266,6 +343,11 @@ class TextDataset(object):
         proposal_points = torch.from_numpy(proposal_points).float()
         ignore_tags = torch.from_numpy(ignore_tags).int()
 
+        bboxes = torch.from_numpy(bboxes).float()
+        lms = torch.from_numpy(lms).float()
+        focus_mask = torch.from_numpy(focus_mask).long()
+        flattened_focus_mask = torch.from_numpy(flattened_focus_mask).long()
+
         return (
             image,
             train_mask,
@@ -276,6 +358,11 @@ class TextDataset(object):
             gt_points,
             proposal_points,
             ignore_tags,
+            # Autofocus
+            bboxes,
+            lms,
+            focus_mask,
+            flattened_focus_mask,
         )
 
     ##TODO: Code consistance for training and test data

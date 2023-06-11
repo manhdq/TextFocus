@@ -19,6 +19,7 @@ from utils.schedule import FixLR
 from utils.misc import AverageMeter, mkdirs, to_device
 from utils.visualize import visualize_network_output
 from dataset import CTW1500Text
+from dataset.preprocess import FocusGenerator
 from network.textnet import TextBPNPlusPlusNet, TextBPNFocus
 from network.loss import TextLoss
 
@@ -63,6 +64,11 @@ def _parse_data(inputs):
     input_dict['gt_points'] = inputs[6]
     input_dict['proposal_points'] = inputs[7]
     input_dict['ignore_tags'] = inputs[8]
+    # Autofocus
+    # input_dict['bboxes'] = inputs[9]
+    # input_dict['lms'] = inputs[10]
+    # input_dict['focus_mask'] = inputs[11]
+    input_dict['flattened_focus_mask'] = inputs[12]
 
     return input_dict
 
@@ -136,6 +142,12 @@ def train(model, train_loader, criterion, scheduler, optimizer, epoch):
 def main():
     ##TODO: Make this `lr` dynamic local for clean code
     global lr
+    
+    focus_gen = FocusGenerator(dont_care_low=cfg.autofocus_dont_care_low,
+                            dont_care_high=cfg.autofocus_dont_care_high,
+                            small_threshold=cfg.autofocus_small_threshold,
+                            stride=cfg.autofocus_stride)
+
     if cfg.exp_name == 'CTW1500':
         trainset = CTW1500Text(
             data_root="data/CTW1500/original",  ##TODO: Make this dynamic
@@ -143,7 +155,9 @@ def main():
             is_training=True,
             load_memory=cfg.load_memory,
             transform=Augmentation(size=cfg.input_size, mean=cfg.means, std=cfg.stds),
+            focus_gen=focus_gen,
         )
+        # trainset[4]
         valset = None  ##TODO: Why not need valset
 
     else:

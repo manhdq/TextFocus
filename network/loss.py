@@ -154,14 +154,13 @@ class TextLoss(nn.Module):
 
         ##TODO: Modify and make these params dynamic
         if eps is None:
-            alpha = 1.0; beta = 3.0; theta = 0.5; gama = 0.05
+            alpha = cfg.alpha; beta = cfg.beta; theta = cfg.theta; gama = cfg.gama
         else:
-            alpha = 1.0; beta = 3.0; theta = 0.5
+            alpha = cfg.alpha; beta = cfg.beta; theta = cfg.theta
             gama = 0.1*torch.sigmoid(torch.tensor((eps - cfg.max_epoch) / cfg.max_epoch))
         loss = alpha * cls_loss + beta*dis_loss + theta*(norm_loss + angle_loss) + gama*(point_loss + energy_loss)
         
         loss_dict = {
-            'total_loss': loss,
             'cls_loss': alpha*cls_loss,
             'distance loss': beta*dis_loss,
             'dir_loss': theta*(norm_loss + angle_loss),
@@ -174,6 +173,14 @@ class TextLoss(nn.Module):
         if cfg.enable_autofocus:
             # calculate loss for autofocus
             autofocus_preds = output_dict["autofocus_preds"]
-            focus_mask = input_dict["focus_mask"]
+            focus_mask = input_dict["flattened_focus_mask"]
+
+            ##TODO: Loss NaN
+            focus_loss = self.focus_loss(autofocus_preds, focus_mask)
+            foc_weight = cfg.foc_weight
+            loss_dict['focus_loss'] = foc_weight*focus_loss
+            loss = loss + foc_weight * focus_loss
+
+        loss_dict['total_loss'] = loss
 
         return loss_dict

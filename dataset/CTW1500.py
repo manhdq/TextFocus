@@ -27,8 +27,9 @@ class CTW1500Text(TextDataset):
                 is_training=True,
                 load_memory=False,
                 transform=None,
+                focus_gen=None,
                 ignore_list=None):
-        super().__init__(transform, is_training)
+        super().__init__(transform, focus_gen, is_training)
         self.data_root = data_root
         self.is_training = is_training
         self.load_memory = load_memory
