@@ -1,0 +1,12 @@
+python dataset/preprocess/chip_generator.py \
+            --img-train-dir /home/ubuntu/Documents/working/pixtaVN/RA/TextBPN++/data/CTW1500/yolo/Images/train \
+            --img-test-dir /home/ubuntu/Documents/working/pixtaVN/RA/TextBPN++/data/CTW1500/yolo/Images/test \
+            --ann-train-dir /home/ubuntu/Documents/working/pixtaVN/RA/TextBPN++/data/CTW1500/yolo/gt/train \
+            --ann-test-dir /home/ubuntu/Documents/working/pixtaVN/RA/TextBPN++/data/CTW1500/yolo/gt/test \
+            --chip-save-dir /home/ubuntu/Documents/working/pixtaVN/RA/TextBPN++/data/CTW1500/yolo \
+            --valid-range 0 \
+            --c-stride 32 \
+            --mapping-threshold 0.45 \
+            --training-size 320 \
+            --n-threads 2 \
+            --use-neg 0
