@@ -24,6 +24,7 @@ def read_lines(p):
 class CTW1500Text(TextDataset):
     def __init__(self,
                 data_root,
+                subroot,
                 is_training=True,
                 load_memory=False,
                 transform=None,
@@ -35,12 +36,12 @@ class CTW1500Text(TextDataset):
         self.load_memory = load_memory
 
         self.image_root = os.path.join(
-            data_root, "Images", "train_images" if is_training else "test_images"
+            data_root, "Images", subroot
         )
         self.annotation_root = os.path.join(
-            data_root, "gt", "train_labels" if is_training else "test_labels"
+            data_root, "gt", subroot
         )
-        self.image_list = os.listdir(self.image_root)
+        self.image_list = os.listdir(self.image_root)[:20]
         self.annotation_list = [
             "{}".format(img_name.replace(".jpg", "")) for img_name in self.image_list
         ]
@@ -59,31 +60,17 @@ class CTW1500Text(TextDataset):
         """
 
         lines = read_lines(gt_path + ".txt")
+        
         polygons = []
         for line in lines:
-            line = line.split(",")
-            gt = list(map(int, line[:-1]))
+            ann_infos = line.split("|")
+            text = ann_infos[1:]
+            text = "|".join(text).strip()
+            ann_infos = ann_infos[0].strip().split()
+            gt = list(map(float, ann_infos[5:]))
+            assert len(gt) % 2 == 0
             pts = np.stack([gt[0::2], gt[1::2]]).T.astype(np.int32)
-            label = line[-1].split("###")[-1].replace("###", "#")
-            polygons.append(TextInstance(pts, "c", label))
-
-        return polygons
-
-    @staticmethod
-    def parse_carve_xml(gt_path):
-        """
-        .mat file parser
-        :param gt_path: (str), mat file path
-        :return: (list), TextInstance
-        """
-        root = ET.parse(gt_path + ".xml").getroot()
-
-        polygons = []
-        for tag in root.findall("image/box"):
-            label = tag.find("label").text.replace("###", "#")
-            gt = list(map(int, tag.find("segs").text.split(",")))
-            pts = np.stack([gt[0::2], gt[1::2]]).T.astype(np.int32)
-            polygons.append(TextInstance(pts, "c", label))
+            polygons.append(TextInstance(pts, "c", text))
 
         return polygons
 
@@ -102,14 +89,9 @@ class CTW1500Text(TextDataset):
             image = np.array(image)
 
         # Read annotation
-        if self.is_training:
-            annotation_id = self.annotation_list[item]
-            annotation_path = os.path.join(self.annotation_root, annotation_id)
-            polygons = self.parse_carve_xml(annotation_path)
-        else:
-            annotation_id = self.annotation_list[item]
-            annotation_path = os.path.join(self.annotation_root, "000" + annotation_id)
-            polygons = self.parse_carve_txt(annotation_path)
+        annotation_id = self.annotation_list[item]
+        annotation_path = os.path.join(self.annotation_root, annotation_id)
+        polygons = self.parse_carve_txt(annotation_path)
 
         data = dict()
         data["image"] = image

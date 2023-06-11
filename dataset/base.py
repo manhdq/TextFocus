@@ -364,41 +364,92 @@ class TextDataset(object):
             focus_mask,
             flattened_focus_mask,
         )
-
-    ##TODO: Code consistance for training and test data
-    def get_test_data(self, image, polygons=None, image_id=None, image_path=None):
-        H, W, _ = image.shape
+    
+    ##TODO: 
+    def get_test_data(self, image, polygons, image_id=None, image_path=None):
         if self.transform:
-            image, polygons = self.transform(image, polygons)
+            image, polygons = self.transform(
+                copy.deepcopy(image), copy.deepcopy(polygons)
+            )
+            ##TODO: Get box for polygons, modify in `transform` later
+            # Get box for polygons
+            for polygon in polygons:
+                polygon.box = points2box(polygon.points)
 
-        # Max point per polygon for annotation
-        points = np.zeros((cfg.max_annotation, cfg.num_points, 2))
-        length = np.zeros(cfg.max_annotation, dtype=int)
-        label_tag = np.zeros(cfg.max_annotation, dtype=int)
-        if polygons is not None:
-            for i, polygon in enumerate(polygons):
-                pts = polygon.points
-                points[i, :pts.shape[0]] = polygon.points
-                length[i] = pts.shape[0]
-                if polygon.text != "#":
-                    label_tag[i] = 1
-                else:
-                    label_tag[i] = -1
-
-        meta = {
-            "image_id": image_id,
-            "image_path": image_path,
-            "annotation": points,
-            "n_annotaiton": length,
-            "label_tag": label_tag,
-            "Height": H,
-            "Width": W,
-        }
+        train_mask, tr_mask, distance_field, direction_field, \
+            weight_matrix, gt_points, proposal_points, ignore_tags, \
+            bboxes, lms, focus_mask, flattened_focus_mask = \
+                self.make_text_region(image, polygons)
 
         # To pytorch channel sequence
         image = image.transpose(2, 0, 1)
+        image = torch.from_numpy(image).float()
 
-        return image, meta
+        train_mask = torch.from_numpy(train_mask).bool()
+        tr_mask = torch.from_numpy(tr_mask).int()
+        distance_field = torch.from_numpy(distance_field).float()
+        direction_field = torch.from_numpy(direction_field).float()
+        weight_matrix = torch.from_numpy(weight_matrix).float()
+        gt_points = torch.from_numpy(gt_points).float()
+        proposal_points = torch.from_numpy(proposal_points).float()
+        ignore_tags = torch.from_numpy(ignore_tags).int()
+
+        bboxes = torch.from_numpy(bboxes).float()
+        lms = torch.from_numpy(lms).float()
+        focus_mask = torch.from_numpy(focus_mask).long()
+        flattened_focus_mask = torch.from_numpy(flattened_focus_mask).long()
+
+        return (
+            image,
+            train_mask,
+            tr_mask,
+            distance_field,
+            direction_field,
+            weight_matrix,
+            gt_points,
+            proposal_points,
+            ignore_tags,
+            # Autofocus
+            bboxes,
+            lms,
+            focus_mask,
+            flattened_focus_mask,
+        )
+
+    # ##TODO: Code consistance for training and test data
+    # def get_test_data(self, image, polygons=None, image_id=None, image_path=None):
+    #     H, W, _ = image.shape
+    #     if self.transform:
+    #         image, polygons = self.transform(image, polygons)
+
+    #     # Max point per polygon for annotation
+    #     points = np.zeros((cfg.max_annotation, cfg.num_points, 2))
+    #     length = np.zeros(cfg.max_annotation, dtype=int)
+    #     label_tag = np.zeros(cfg.max_annotation, dtype=int)
+    #     if polygons is not None:
+    #         for i, polygon in enumerate(polygons):
+    #             pts = polygon.points
+    #             points[i, :pts.shape[0]] = polygon.points
+    #             length[i] = pts.shape[0]
+    #             if polygon.text != "#":
+    #                 label_tag[i] = 1
+    #             else:
+    #                 label_tag[i] = -1
+
+    #     meta = {
+    #         "image_id": image_id,
+    #         "image_path": image_path,
+    #         "annotation": points,
+    #         "n_annotaiton": length,
+    #         "label_tag": label_tag,
+    #         "Height": H,
+    #         "Width": W,
+    #     }
+
+    #     # To pytorch channel sequence
+    #     image = image.transpose(2, 0, 1)
+
+    #     return image, meta
 
     def _len__(self):
         raise NotImplementedError

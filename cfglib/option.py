@@ -52,7 +52,7 @@ class BaseOptions(object):
             "--mgpu", action="store_true", help="Use multi-gpu to train model"
         )
         self.parser.add_argument(
-            "--save_dir", default="./model/", help="Path to save checkpoint models"
+            "--save_dir", default="./ckpts/", help="Path to save checkpoint models"
         )
         self.parser.add_argument(
             "--vis_dir", default="./vis/", help="Path to save visualization images"
@@ -62,6 +62,18 @@ class BaseOptions(object):
         )
         self.parser.add_argument(
             "--loss", default="CrossEntropyLoss", type=str, help="Training Loss"
+        )
+        self.parser.add_argument(
+            "--data_root", type=str, required=True,
+            help="root diretory for dataset"
+        )
+        self.parser.add_argument(
+            "--train_subroot", type=str, default="train",
+            help="root for train dataset part"
+        )
+        self.parser.add_argument(
+            "--val_subroot", type=str, default="val",
+            help="root for val dataset part"
         )
         # self.parser.add_argument('--input_channel', default=1, type=int, help='number of input channels' )
         self.parser.add_argument(

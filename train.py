@@ -11,10 +11,11 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data as data
 from torch.optim import lr_scheduler
 from torch.utils.data import ConcatDataset
+from tensorboardX import SummaryWriter
 
 from cfglib.config import config as cfg, update_config, print_config
 from cfglib.option import BaseOptions
-from utils.augmentation import Augmentation
+from utils.augmentation import Augmentation, BaseTransform
 from utils.schedule import FixLR
 from utils.misc import AverageMeter, mkdirs, to_device
 from utils.visualize import visualize_network_output
@@ -26,16 +27,19 @@ from network.loss import TextLoss
 
 lr = None
 train_step = 0
+best_total_loss = np.inf
 
 
 ##TODO: Modify for saving best, last and according to each loss and metrics
-def save_model(model, epoch, lr, optimizer):
+def save_model(model, epoch, lr, optimizer, suffix=""):
 
     save_dir = os.path.join(cfg.save_dir, cfg.exp_name)
     if not os.path.exists(save_dir):
         mkdirs(save_dir)
 
-    save_path = os.path.join(save_dir, 'TextBPN_{}_{}.pth'.format(model.backbone_name, epoch))
+    suffix = suffix if suffix != "" else epoch
+
+    save_path = os.path.join(save_dir, 'TextBPN_{}_{}.pth'.format(model.backbone_name, suffix))
     print('Saving to {}.'.format(save_path))
     state_dict = {
         'lr': lr,
@@ -73,18 +77,35 @@ def _parse_data(inputs):
     return input_dict
 
 
-def train(model, train_loader, criterion, scheduler, optimizer, epoch):
+def train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoch, writer=None):
     ##TODO: Make this `train_step` dynamic local for clean code
     global train_step
+    global best_total_loss
 
-    losses = AverageMeter()
+    loss_list = [
+        'cls_loss',
+        'distance loss',
+        'dir_loss',
+        'norm_loss',
+        'angle_loss',
+        'point_loss',
+        'energy_loss',
+        'focus_loss',
+        'total_loss',
+    ]
+
+    print('Epoch: {} : LR = {}'.format(epoch, scheduler.get_lr()))
+
+    print("="*10)
+    print("TRAINING")
+    print("="*10)
+
+    losses = {loss_name: AverageMeter() for loss_name in loss_list}
     batch_time = AverageMeter()
     data_time = AverageMeter()
     end = time.time()
     model.train()
-    # scheduler.step()
-
-    print('Epoch: {} : LR = {}'.format(epoch, scheduler.get_lr()))
+    # scheduler.step()  ##TODO: Why step here?
 
     for i, inputs in enumerate(train_loader):
 
@@ -106,7 +127,8 @@ def train(model, train_loader, criterion, scheduler, optimizer, epoch):
 
         optimizer.step()
 
-        losses.update(loss.item())
+        for loss_name, loss_value in loss_dict.items():
+            losses[loss_name].update(loss_value.item())
         # Measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -122,26 +144,67 @@ def train(model, train_loader, criterion, scheduler, optimizer, epoch):
                 print_inform += " {}: {:.4f} ".format(k, v.item())
             print(print_inform)
 
-    if cfg.exp_name == 'Synthtext' or cfg.exp_name == 'ALL':
-        if epoch % cfg.save_freq == 0:
-            save_model(model, epoch, scheduler.get_lr(), optimizer)
-    elif cfg.exp_name == 'MLT2019' or cfg.exp_name == 'ArT' or cfg.exp_name == 'MLT2017':
-        if epoch < 50 and cfg.max_epoch >= 200:
-            if epoch % (2*cfg.save_freq) == 0:
-                save_model(model, epoch, scheduler.get_lr(), optimizer)
-        else:
-            if epoch % cfg.save_freq == 0:
-                save_model(model, epoch, scheduler.get_lr(), optimizer)
-    else:
-        if epoch % cfg.save_freq == 0 and epoch > 50:
-            save_model(model, epoch, scheduler.get_lr(), optimizer)
+    for loss_name, loss_meter in losses.items():
+        writer.add_scalar("train/" + loss_name, loss_meter.avg, epoch+1)
+    writer.add_scalar("train/data_time", data_time.avg, epoch+1)
+    writer.add_scalar("train/batch_time", batch_time.avg, epoch+1)
 
-    print('Training Loss: {}'.format(losses.avg))
+    print()
+
+    print("="*10)
+    print("VALIDATING")
+    print("="*10)
+
+    losses = {loss_name: AverageMeter() for loss_name in loss_list}
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    end = time.time()
+    model.eval()
+    # scheduler.step()  ##TODO: Why step here?
+
+    with torch.no_grad():
+        for i, inputs in enumerate(val_loader):
+
+            data_time.update(time.time() - end)
+            train_step += 1
+            input_dict = _parse_data(inputs)
+            
+            output_dict = model(input_dict)
+            loss_dict = criterion(input_dict, output_dict, eps=epoch + 1)
+
+            for loss_name, loss_value in loss_dict.items():
+                losses[loss_name].update(loss_value.item())
+            # Measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            ##TODO: Modify for logging to tqdm
+            if i % cfg.display_freq == 0:
+                gc.collect()
+                print_inform = "({:d} / {:d}) ".format(i, len(val_loader))
+                for (k, v) in loss_dict.items():
+                    print_inform += " {}: {:.4f} ".format(k, v.item())
+                print(print_inform)
+
+        for loss_name, loss_meter in losses.items():
+            writer.add_scalar("val/" + loss_name, loss_meter.avg, epoch+1)
+        writer.add_scalar("val/data_time", data_time.avg, epoch+1)
+        writer.add_scalar("val/batch_time", batch_time.avg, epoch+1)
+
+        save_model(model, epoch, scheduler.get_lr(), optimizer, suffix="last")
+        if best_total_loss > losses["total_loss"].avg:
+            print(f"Total loss: {best_total_loss} --> {losses['total_loss'].avg}. Save model at epoch {epoch}...")
+            save_model(model, epoch, scheduler.get_lr(), optimizer, suffix="best")
+    
+    print()
 
 
 def main():
     ##TODO: Make this `lr` dynamic local for clean code
     global lr
+
+    # Metrics tracking
+    writer = SummaryWriter(cfg.log_dir)
     
     focus_gen = FocusGenerator(dont_care_low=cfg.autofocus_dont_care_low,
                             dont_care_high=cfg.autofocus_dont_care_high,
@@ -150,15 +213,23 @@ def main():
 
     if cfg.exp_name == 'CTW1500':
         trainset = CTW1500Text(
-            data_root="data/CTW1500/original",  ##TODO: Make this dynamic
+            data_root=cfg.data_root,
+            subroot=cfg.train_subroot,
             ignore_list=None,
             is_training=True,
             load_memory=cfg.load_memory,
             transform=Augmentation(size=cfg.input_size, mean=cfg.means, std=cfg.stds),
             focus_gen=focus_gen,
         )
-        # trainset[4]
-        valset = None  ##TODO: Why not need valset
+        valset = CTW1500Text(
+            data_root=cfg.data_root,
+            subroot=cfg.val_subroot,
+            ignore_list=None,
+            is_training=False,
+            load_memory=cfg.load_memory,
+            transform=BaseTransform(size=(cfg.input_size, cfg.input_size), mean=cfg.means, std=cfg.stds),
+            focus_gen=focus_gen
+        )
 
     else:
         print("dataset name is not correct")
@@ -168,6 +239,14 @@ def main():
         trainset,
         batch_size=cfg.batch_size,
         shuffle=True,
+        num_workers=cfg.num_workers,
+        pin_memory=True,
+        generator=torch.Generator(device=cfg.device)
+    )
+    val_loader = data.DataLoader(
+        valset,
+        batch_size=cfg.batch_size,
+        shuffle=False,
         num_workers=cfg.num_workers,
         pin_memory=True,
         generator=torch.Generator(device=cfg.device)
@@ -202,9 +281,10 @@ def main():
     for epoch in range(cfg.start_epoch, cfg.max_epoch + 1):
         ##TODO: Put this `scheduler` to train func
         scheduler.step()
-        train(model, train_loader, criterion, scheduler, optimizer, epoch)
+        train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoch, writer=writer)
 
     print("End.")
+    writer.close()
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

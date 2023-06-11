@@ -101,7 +101,13 @@ class ChipGenerator():
             img_name_list = os.listdir(img_dir)
             img_name_list = [img_name.split('.')[0] for img_name in img_name_list]
             print(f"Generating chips from {len(img_name_list)} images for phase {phase}...")
-            
+            ##TODO: Dont know such item cant be used, set rule later
+            remove_list = ["0070", "0346", "0030", 
+                        "1065", "1171", "1006", "1038", "1323"]
+            for remove_id in remove_list:
+                if remove_id in img_name_list:
+                    img_name_list.remove(remove_id)
+
             # for img_name in tqdm(img_name_list, total=len(img_name_list)):
             #     self._positive_gen(img_name, img_dir, ann_dir, chip_img_dir, chip_ann_dir)
             with Pool(self.n_threads) as pool:
@@ -264,12 +270,17 @@ def get_annotation_from_txt(ann_path, img_size):
     texts = []
     try:
         for line in lines:
-            ann_text_infos = line.split("|")
-            ann_infos = ann_text_infos[0]
-            text = "|".join(ann_text_infos[1:])
-            text = text.strip()
-            texts.append(text)
-            ann_infos = ann_infos.strip().split()
+            if len(line.split("|")) > 1:
+                ann_text_infos = line.split("|")
+                ann_infos = ann_text_infos[0]
+                text = "|".join(ann_text_infos[1:])
+                text = text.strip()
+                texts.append(text)
+                ann_infos = ann_infos.strip().split()
+            else:  # China CTW
+                ann_infos = line.split()
+                texts.append(ann_infos[-1])
+                ann_infos = ann_infos[:-1]
             
             lbl = int(ann_infos[0])
             labels.append(lbl)
@@ -296,8 +307,6 @@ def get_annotation_from_txt(ann_path, img_size):
 
 if __name__ == "__main__":
     args = get_parser()
-
-    test = "739 | 2008 GENERAL MILLS IBERICA, SAU Reservados todos los derechos. Informacion legal | Aviso legal | Politics de proteccion de datos | Mapa Weo"
     
     chip_generator = ChipGenerator(args.valid_range,
                                 args.c_stride,
