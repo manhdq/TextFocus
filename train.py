@@ -193,7 +193,8 @@ def train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoc
 
         save_model(model, epoch, scheduler.get_lr(), optimizer, suffix="last")
         if best_total_loss > losses["total_loss"].avg:
-            print(f"Total loss: {best_total_loss} --> {losses['total_loss'].avg}. Save model at epoch {epoch}...")
+            best_total_loss = losses["total_loss"].avg
+            print(f"Total loss: {best_total_loss:.5f} --> {losses['total_loss'].avg:.5f}. Save model at epoch {epoch}...")
             save_model(model, epoch, scheduler.get_lr(), optimizer, suffix="best")
     
     print()
