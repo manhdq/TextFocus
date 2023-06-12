@@ -72,7 +72,7 @@ def _parse_data(inputs):
     # input_dict['bboxes'] = inputs[9]
     # input_dict['lms'] = inputs[10]
     # input_dict['focus_mask'] = inputs[11]
-    input_dict['flattened_focus_mask'] = inputs[12]
+    input_dict['flattened_focus_mask'] = inputs[10]
 
     return input_dict
 

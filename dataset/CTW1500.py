@@ -41,7 +41,7 @@ class CTW1500Text(TextDataset):
         self.annotation_root = os.path.join(
             data_root, "gt", subroot
         )
-        self.image_list = os.listdir(self.image_root)[:20]
+        self.image_list = os.listdir(self.image_root)
         self.annotation_list = [
             "{}".format(img_name.replace(".jpg", "")) for img_name in self.image_list
         ]

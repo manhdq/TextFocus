@@ -343,7 +343,7 @@ class TextDataset(object):
         proposal_points = torch.from_numpy(proposal_points).float()
         ignore_tags = torch.from_numpy(ignore_tags).int()
 
-        bboxes = torch.from_numpy(bboxes).float()
+        bboxes = torch.from_numpy(bboxes).float()  ##TODO: Set fix number of boxes later
         lms = torch.from_numpy(lms).float()
         focus_mask = torch.from_numpy(focus_mask).long()
         flattened_focus_mask = torch.from_numpy(flattened_focus_mask).long()
@@ -358,9 +358,9 @@ class TextDataset(object):
             gt_points,
             proposal_points,
             ignore_tags,
-            # Autofocus
-            bboxes,
-            lms,
+            # # Autofocus
+            # bboxes,
+            # lms,
             focus_mask,
             flattened_focus_mask,
         )

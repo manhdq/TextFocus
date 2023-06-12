@@ -11,7 +11,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
                             --autofocus_small_threshold 50 \
                             --scale 4 \
                             --max_epoch 660 \
-                            --batch_size 1 \
+                            --batch_size 2 \
                             --gpu 0 \
                             --input_size 320 \
                             --optim Adam --lr 0.0001 \
