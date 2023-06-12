@@ -409,9 +409,9 @@ class TextDataset(object):
             gt_points,
             proposal_points,
             ignore_tags,
-            # Autofocus
-            bboxes,
-            lms,
+            # # Autofocus
+            # bboxes,
+            # lms,
             focus_mask,
             flattened_focus_mask,
         )

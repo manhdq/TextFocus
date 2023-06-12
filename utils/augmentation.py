@@ -672,6 +672,51 @@ class ResizeSquare(object):
         return image, polygons
 
 
+class ResizeSquarePadding(object):
+    def __init__(self, size=(480, 1280), scaleup=True, scaleFill=False, auto=False, stride=32):
+        self.size = (size, size) if isinstance(size, int) else size
+        self.scaleup = scaleup
+        self.auto = auto
+        self.stride = stride
+        self.scaleFill = scaleFill
+
+    def __call__(self, image, polygons=None):
+        shape = image.shape[:2] # current shape [height, width]
+        new_shape = self.size
+
+        # Scale ratio (new / old)
+        r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+        if not self.scaleup:  # only scale down, do not scale up (for better val mAP)
+            r = min(r, 1.0)
+
+        # Compute padding
+        ratio = r, r  # width, height ratios
+        new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+        dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
+        if self.auto:  # minimum rectangle
+            dw, dh = np.mod(dw, self.stride), np.mod(dh, self.stride)  # wh padding
+        elif self.scaleFill:  # stretch
+            dw, dh = 0.0, 0.0
+            new_unpad = (new_shape[1], new_shape[0])
+            ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
+
+        dw /= 2  # divide padding into 2 sides
+        dh /= 2
+
+        if shape[::-1] != new_unpad:  # resize
+            image = cv2.resize(image, new_unpad, interpolation=cv2.INTER_LINEAR)
+        top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+        left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+        image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(0, 0, 0))  # add border
+
+        if polygons is not None:
+            for polygon in polygons:
+                polygon.points = polygon.points * r
+                polygon.points[:, 0] = polygon.points[:, 0] + left
+                polygon.points[:, 1] = polygon.points[:, 1] + top
+        return image, polygons
+
+
 class ResizeLimitSquare(object):
     def __init__(self, size=512, ratio=0.6):
         self.size = size
@@ -774,7 +819,7 @@ class BaseTransform(object):
         self.std = std
         self.augmentation = Compose([
             # Resize(size=640),
-            ResizeSquare(size=self.size),
+            ResizeSquarePadding(size=self.size),
             Normalize(mean, std)
         ])
 
