@@ -31,6 +31,7 @@ class BaseOptions(object):
             type=str,
             choices=[
                 "CTW1500",
+                "CTW_China",
                 "ALL",
             ],
             help="Experiment name",

@@ -15,5 +15,5 @@ CUDA_VISIBLE_DEVICES=0 python demo.py \
                             --model_type torch \
                             --img_root /home/ubuntu/Documents/working/pixtaVN/RA/TextBPN++/data/CTW1500/yolo/Images/test \
                             --model_path /home/ubuntu/Documents/working/pixtaVN/RA/TextBPN++/weights/TextBPN_resnet18_best.pth \
-                            --draw_preds \
+                            # --draw_preds \
                             # --draw_points

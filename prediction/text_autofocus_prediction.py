@@ -295,8 +295,22 @@ class TextBPNFocusPrediction(BasePrediction):
                                                         valid_range=cfg.draw_valid_range,
                                                         suffix="preds")
         ##TODO: priority
-        # self.save_txt_result(img_name, all_py_preds, all_confidences)
+        self.save_txt_result(img_name, all_py_preds, all_confidences)
         return ori_pred_save_path
+
+    def save_txt_result(self, img_name, all_py_preds, all_confidences):
+        last_py_preds = all_py_preds[-1]
+        lines = []
+        save_txt_path = os.path.abspath(
+            os.path.join(self.preds_save_dir, "txt_preds", f"{img_name.split('.')[0]}.txt")
+        )
+        for py_pred, confidence in zip(last_py_preds, all_confidences):
+            py_pred_text = " ".join([f"{point[0]:.2f} {point[1]:.2f}" for point in py_pred])
+            line = f"0 {confidence:.2f} {py_pred_text}"
+            lines.append(line)
+        
+        with open(save_txt_path, "w") as f:
+            f.write("\n".join(lines))
 
     def _draw_on_ori_image(self,
                         img_name,

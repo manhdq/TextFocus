@@ -19,7 +19,7 @@ from utils.augmentation import Augmentation, BaseTransform
 from utils.schedule import FixLR
 from utils.misc import AverageMeter, mkdirs, to_device
 from utils.visualize import visualize_network_output
-from dataset import CTW1500Text
+from dataset import CTW1500Text, CTW_China_Text
 from dataset.preprocess import FocusGenerator
 from network.textnet import TextBPNPlusPlusNet, TextBPNFocus
 from network.loss import TextLoss
@@ -223,6 +223,26 @@ def main():
             focus_gen=focus_gen,
         )
         valset = CTW1500Text(
+            data_root=cfg.data_root,
+            subroot=cfg.val_subroot,
+            ignore_list=None,
+            is_training=False,
+            load_memory=cfg.load_memory,
+            transform=BaseTransform(size=(cfg.input_size, cfg.input_size), mean=cfg.means, std=cfg.stds),
+            focus_gen=focus_gen
+        )
+
+    elif cfg.exp_name == 'CTW_China':
+        trainset = CTW_China_Text(
+            data_root=cfg.data_root,
+            subroot=cfg.train_subroot,
+            ignore_list=None,
+            is_training=True,
+            load_memory=cfg.load_memory,
+            transform=Augmentation(size=cfg.input_size, mean=cfg.means, std=cfg.stds),
+            focus_gen=focus_gen,
+        )
+        valset = CTW_China_Text(
             data_root=cfg.data_root,
             subroot=cfg.val_subroot,
             ignore_list=None,

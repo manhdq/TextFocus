@@ -1,8 +1,6 @@
 import os
-import sys
 import cv2
 import numpy as np
-from lxml import etree as ET
 
 from .base import TextDataset, TextInstance, pil_load_img
 
@@ -21,7 +19,7 @@ def read_lines(p):
 
 
 ##TODO: Modify this for yolo annotations training
-class CTW1500Text(TextDataset):
+class CTW_China_Text(TextDataset):
     def __init__(self,
                 data_root,
                 subroot,
@@ -135,8 +133,8 @@ if __name__ == "__main__":
 
     transform = Augmentation(size=640, mean=means, std=stds)
 
-    trainset = CTW1500Text(
-        data_root="./data/CTW1500/original", is_training=True, transform=transform
+    trainset = CTW_China(
+        data_root="./data/CTW_China/original", is_training=True, transform=transform
     )
 
     for idx in range(0, 5):
