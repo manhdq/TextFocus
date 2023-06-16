@@ -368,8 +368,8 @@ class TextDataset(object):
     ##TODO: 
     def get_test_data(self, image, polygons, image_id=None, image_path=None):
         if self.transform:
-            image, polygons = self.transform(
-                copy.deepcopy(image), copy.deepcopy(polygons)
+            (image, polygons), _ = self.transform(
+                copy.deepcopy(image), copy.deepcopy(polygons), return_pads=False
             )
             ##TODO: Get box for polygons, modify in `transform` later
             # Get box for polygons

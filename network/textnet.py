@@ -76,6 +76,42 @@ class Evolution(nn.Module):
         
         return init_polys, inds, None
 
+    def get_boundary_proposal_eval(self, input=None, seg_preds=None):
+        cls_preds = seg_preds[:, 0, :, :].detach().cpu().numpy()
+        dis_preds = seg_preds[:, 1, :, :].detach().cpu().numpy()
+
+        inds = []
+        init_polys = []
+        confidences = []
+        for bid, dis_pred in enumerate(dis_preds):
+            dis_mask = dis_pred > cfg.dis_threshold
+            ret, labels = cv2.connectedComponents(dis_mask.astype(np.uint8), connectivity=8, ltype=cv2.CV_16U)
+            for idx in range(1, ret):
+                text_mask = labels == idx
+                confidence = round(cls_preds[bid][text_mask].mean(), 3)
+                # 50 for MLT2017 and ArT (or DCN is used in backone); else is all 150;
+                # just can set to 50, which has little effect on the performance
+                ##TODO: priority, change the default value
+                if np.sum(text_mask) < cfg.pixel_scalar / (cfg.scale*cfg.scale) or confidence < cfg.cls_threshold:
+                    continue
+
+                confidences.append(confidence)
+                inds.append([bid, 0])
+
+                poly = get_sample_point(text_mask, cfg.num_points, cfg.approx_factor,
+                                    scales=np.array(np.array([cfg.scale, cfg.scale])))
+                init_polys.append(poly)
+        if len(inds) > 0:
+            inds = torch.from_numpy(np.array(inds)).permute(1, 0).to(input["img"].device, non_blocking=True)
+            init_polys = torch.from_numpy(np.array(init_polys)).to(input["img"].device, non_blocking=True).float()
+            confidences = torch.from_numpy(np.array(confidences)).to(input["img"].device, non_blocking=True).float()
+        else:
+            confidences = torch.from_numpy(np.array(confidences)).to(input["img"].device, non_blocking=True).float()
+            init_polys = torch.from_numpy(np.array(init_polys)).to(input["img"].device, non_blocking=True).float()
+            inds = torch.from_numpy(np.array(inds)).to(input["img"].device, non_blocking=True)
+        
+        return init_polys, inds, confidences
+
     def evolve_poly(self, snake, cnn_feature, i_it_poly, ind):
         if len(i_it_poly) == 0:
             return torch.zeros_like(i_it_poly)
@@ -199,12 +235,7 @@ class TextBPNFocus(nn.Module):
             image[:, :, :h, :w] = input_dict["img"][:, :, :, :]
 
         up1, up2, up3, up4, up5 = self.TextBPN.fpn(image)
-        # print(up1.shape)
-        # print(up2.shape)
-        # print(up3.shape)
-        # print(up4.shape)
-        # print(up5.shape)
-        # exit()
+
         up1 = up1[:, :, :h // cfg.scale, :w // cfg.scale]
 
         preds = self.TextBPN.seg_head(up1)

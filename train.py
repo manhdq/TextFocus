@@ -44,8 +44,8 @@ def save_model(model, epoch, lr, optimizer, suffix=""):
     state_dict = {
         'lr': lr,
         'epoch': epoch,
-        'model': model.state_dict() if not cfg.mgpu else model.module.state_dict()
-        # 'optimizer': optimzer.state_dict()
+        'model': model.state_dict() if not cfg.mgpu else model.module.state_dict(),
+        'optimizer': optimizer.state_dict()
     }
     torch.save(state_dict, save_path)
 

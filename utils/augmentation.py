@@ -680,7 +680,7 @@ class ResizeSquarePadding(object):
         self.stride = stride
         self.scaleFill = scaleFill
 
-    def __call__(self, image, polygons=None):
+    def __call__(self, image, polygons=None, return_pads=False):
         shape = image.shape[:2] # current shape [height, width]
         new_shape = self.size
 
@@ -714,7 +714,12 @@ class ResizeSquarePadding(object):
                 polygon.points = polygon.points * r
                 polygon.points[:, 0] = polygon.points[:, 0] + left
                 polygon.points[:, 1] = polygon.points[:, 1] + top
-        return image, polygons
+        
+        if return_pads:
+            pads = (left, top, right, bottom)
+            return image, polygons, pads
+        else:
+            return image, polygons, None
 
 
 class ResizeLimitSquare(object):
@@ -817,14 +822,16 @@ class BaseTransform(object):
         self.size = size
         self.mean = mean
         self.std = std
+        self.resize_square_padding = ResizeSquarePadding(size=self.size)
         self.augmentation = Compose([
             # Resize(size=640),
-            ResizeSquarePadding(size=self.size),
+            # ResizeSquarePadding(size=self.size),
             Normalize(mean, std)
         ])
 
-    def __call__(self, image, polygons=None):
-        return self.augmentation(image, polygons)
+    def __call__(self, image, polygons=None, return_pads=False):
+        image, polygons, pads = self.resize_square_padding(image, polygons, return_pads=return_pads)
+        return self.augmentation(image, polygons), pads
 
 
 class BaseTransformNresize(object):
