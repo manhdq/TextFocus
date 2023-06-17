@@ -142,6 +142,7 @@ def train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoc
             print_inform = "({:d} / {:d}) ".format(i, len(train_loader))
             for (k, v) in loss_dict.items():
                 print_inform += " {}: {:.4f} ".format(k, v.item())
+            print_inform += f" batch_time: {batch_time.avg:.4f}s "
             print(print_inform)
 
     for loss_name, loss_meter in losses.items():
@@ -184,6 +185,7 @@ def train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoc
                 print_inform = "({:d} / {:d}) ".format(i, len(val_loader))
                 for (k, v) in loss_dict.items():
                     print_inform += " {}: {:.4f} ".format(k, v.item())
+                print_inform += f" batch_time: {batch_time.avg:.4f}s "
                 print(print_inform)
 
         for loss_name, loss_meter in losses.items():
