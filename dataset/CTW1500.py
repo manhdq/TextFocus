@@ -65,7 +65,7 @@ class CTW1500Text(TextDataset):
         for line in lines:
             ann_infos = line.split(" | ")
             text = ann_infos[1:]
-            text = "|".join(text).strip()
+            text = " | ".join(text).strip()
             ann_infos = ann_infos[0].strip().split()
             gt = list(map(float, ann_infos[5:]))
             assert len(gt) % 2 == 0

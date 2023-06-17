@@ -166,7 +166,7 @@ class TextDataset(object):
         overlay[:, :, 0][focus_mask == -1] = mask_color_neg[0] # Blue
         overlay[:, :, 1][focus_mask == -1] = mask_color_neg[1] # Green
         overlay[:, :, 2][focus_mask == -1] = mask_color_neg[2] # Red
-        image_show = cv2.addWeighted(overlay, 0.2, image_show, 0.8, 0)
+        image_show = cv2.addWeighted(overlay, 0.5, image_show, 0.5, 0)
 
         for contour in contours:
             box = contour.box.astype(int)
@@ -190,11 +190,13 @@ class TextDataset(object):
         boxes[:, 0::2] /= w
         boxes[:, 1::2] /= h
         # Normalize lm
-        lms[:, 0::2] /= w
-        lms[:, 1::2] /= h
+        if lms is not None:
+            lms[:, 0::2] /= w
+            lms[:, 1::2] /= h
         return boxes, lms
-
-    def _prepare_focus_mask(self, img_size, boxes):
+    
+    ##TODO: Delete this?
+    def _prepare_focus_mask_by_boxes(self, img_size, boxes):
         """
         Prepare focus mask corresponding with new image size
         """
@@ -209,6 +211,18 @@ class TextDataset(object):
             mask = self.focus_gen.calculate_mask(
                 scaled_bb[0], scaled_bb[1], scaled_bb[2], scaled_bb[3], mask
             )
+        flattened_mask = mask.reshape(mask.shape[0] * mask.shape[1])
+        return mask, flattened_mask
+
+    def _prepare_focus_mask_by_landmarks(self, img_size, lms_group):
+        """
+        Prepare focus_mask corresponding with new image size"""
+        w, h = img_size
+        mask_w = math.ceil(w / self.focus_gen.stride)
+        mask_h = math.ceil(h / self.focus_gen.stride)
+        mask = np.zeros((mask_h, mask_w)).astype(np.long)
+
+        mask = self.focus_gen.calculate_mask_by_landmarks_group(lms_group, mask)
         flattened_mask = mask.reshape(mask.shape[0] * mask.shape[1])
         return mask, flattened_mask
 
@@ -284,15 +298,10 @@ class TextDataset(object):
         # direction_field[:, tr_mask == 0] = diff[:, tr_mask == 0]
 
         # Get autofocus annotations
-        bboxes = np.array([polygon.box for polygon in polygons])
-        lms = np.array([polygon.points.reshape(-1) for polygon in polygons])
-        bboxes, lms = self._norm_annotation(bboxes, lms, (w, h))
-
-        focus_mask, flattened_focus_mask = self._prepare_focus_mask((w, h), bboxes)
-
+        focus_mask, flattened_focus_mask = self._prepare_focus_mask_by_landmarks((w, h), gt_points[ignore_tags==1])
         ##TODO:
         # show_img = self.visualize_gt(img, polygons, focus_mask)
-        # cv2.imwrite("test.jpg", show_img)
+        # cv2.imwrite("test_mask.jpg", show_img)
         # exit()
 
         train_mask = np.clip(train_mask, 0, 1)
@@ -307,8 +316,6 @@ class TextDataset(object):
             proposal_points,
             ignore_tags,
             # Autofocus
-            bboxes,
-            lms,
             focus_mask,
             flattened_focus_mask,
         )
@@ -327,7 +334,7 @@ class TextDataset(object):
 
         train_mask, tr_mask, distance_field, direction_field, \
             weight_matrix, gt_points, proposal_points, ignore_tags, \
-            bboxes, lms, focus_mask, flattened_focus_mask = \
+            focus_mask, flattened_focus_mask = \
                 self.make_text_region(image, polygons)
 
         # To pytorch channel sequence
@@ -343,8 +350,6 @@ class TextDataset(object):
         proposal_points = torch.from_numpy(proposal_points).float()
         ignore_tags = torch.from_numpy(ignore_tags).int()
 
-        bboxes = torch.from_numpy(bboxes).float()  ##TODO: Set fix number of boxes later
-        lms = torch.from_numpy(lms).float()
         focus_mask = torch.from_numpy(focus_mask).long()
         flattened_focus_mask = torch.from_numpy(flattened_focus_mask).long()
 
@@ -358,9 +363,7 @@ class TextDataset(object):
             gt_points,
             proposal_points,
             ignore_tags,
-            # # Autofocus
-            # bboxes,
-            # lms,
+            # Autofocus
             focus_mask,
             flattened_focus_mask,
         )
@@ -378,7 +381,7 @@ class TextDataset(object):
 
         train_mask, tr_mask, distance_field, direction_field, \
             weight_matrix, gt_points, proposal_points, ignore_tags, \
-            bboxes, lms, focus_mask, flattened_focus_mask = \
+            focus_mask, flattened_focus_mask = \
                 self.make_text_region(image, polygons)
 
         # To pytorch channel sequence
@@ -394,8 +397,6 @@ class TextDataset(object):
         proposal_points = torch.from_numpy(proposal_points).float()
         ignore_tags = torch.from_numpy(ignore_tags).int()
 
-        bboxes = torch.from_numpy(bboxes).float()
-        lms = torch.from_numpy(lms).float()
         focus_mask = torch.from_numpy(focus_mask).long()
         flattened_focus_mask = torch.from_numpy(flattened_focus_mask).long()
 
@@ -409,9 +410,7 @@ class TextDataset(object):
             gt_points,
             proposal_points,
             ignore_tags,
-            # # Autofocus
-            # bboxes,
-            # lms,
+            # Autofocus
             focus_mask,
             flattened_focus_mask,
         )

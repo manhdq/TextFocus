@@ -63,7 +63,7 @@ class CTW_China_Text(TextDataset):
         for line in lines:
             ann_infos = line.split(" | ")
             text = ann_infos[1:]
-            text = "|".join(text).strip()
+            text = " | ".join(text).strip()
             ann_infos = ann_infos[0].strip().split()
             gt = list(map(float, ann_infos[5:]))
             assert len(gt) % 2 == 0
@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
     transform = Augmentation(size=640, mean=means, std=stds)
 
-    trainset = CTW_China(
+    trainset = CTW_China_Text(
         data_root="./data/CTW_China/original", is_training=True, transform=transform
     )
 
