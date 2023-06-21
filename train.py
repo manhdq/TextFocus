@@ -195,8 +195,8 @@ def train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoc
 
         save_model(model, epoch, scheduler.get_lr(), optimizer, suffix="last")
         if best_total_loss > losses["total_loss"].avg:
-            best_total_loss = losses["total_loss"].avg
             print(f"Total loss: {best_total_loss:.5f} --> {losses['total_loss'].avg:.5f}. Save model at epoch {epoch}...")
+            best_total_loss = losses["total_loss"].avg
             save_model(model, epoch, scheduler.get_lr(), optimizer, suffix="best")
     
     print()
@@ -224,6 +224,7 @@ def main():
             transform=Augmentation(size=cfg.input_size, mean=cfg.means, std=cfg.stds),
             focus_gen=focus_gen,
         )
+        
         valset = CTW1500Text(
             data_root=cfg.data_root,
             subroot=cfg.val_subroot,

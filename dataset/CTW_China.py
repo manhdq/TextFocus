@@ -65,10 +65,11 @@ class CTW_China_Text(TextDataset):
             text = ann_infos[1:]
             text = " | ".join(text).strip()
             ann_infos = ann_infos[0].strip().split()
-            gt = list(map(float, ann_infos[5:]))
+            is_valid = int(ann_infos[1])
+            gt = list(map(float, ann_infos[6:]))
             assert len(gt) % 2 == 0
             pts = np.stack([gt[0::2], gt[1::2]]).T.astype(np.int32)
-            polygons.append(TextInstance(pts, "c", text))
+            polygons.append(TextInstance(pts, "c", text, is_valid))
 
         return polygons
 

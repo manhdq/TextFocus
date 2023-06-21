@@ -146,6 +146,7 @@ class TextLoss(nn.Module):
                                                     weight_matrix, tr_mask, train_mask)
 
         # boundary point loss
+        ##TODO: Current `point_loss` and `energy_loss` will be `nan` if do not have any in groundtruth
         point_loss = self.PolyMatchingLoss(py_preds[1:], gt_tags[inds])
 
         # Minimum energy loss regularization

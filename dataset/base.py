@@ -26,9 +26,10 @@ def points2box(points):
 
 
 class TextInstance(object):
-    def __init__(self, points, orient, text):
+    def __init__(self, points, orient, text, is_valid):
         self.orient = orient
-        self.text = text
+        self.text = text  ## Currently we dont use this
+        self.is_valid = is_valid
         self.bottoms = None
         self.e1 = None
         self.e2 = None
@@ -264,9 +265,9 @@ class TextDataset(object):
             inst_mask = mask_zeros.copy()
             cv2.fillPoly(inst_mask, [polygon.points.astype(np.int32)], color=(1,))
             dmp = ndimg.distance_transform_edt(inst_mask)  # distance transform
-
+            
             if (
-                polygon.text == "#"
+                polygon.is_valid == 1
                 or np.max(dmp) < self.min_text_size
                 or np.sum(inst_mask) < 150  ##TODO: should we change this??
             ):
@@ -298,7 +299,7 @@ class TextDataset(object):
         # direction_field[:, tr_mask == 0] = diff[:, tr_mask == 0]
 
         # Get autofocus annotations
-        focus_mask, flattened_focus_mask = self._prepare_focus_mask_by_landmarks((w, h), gt_points[ignore_tags==1])
+        focus_mask, flattened_focus_mask = self._prepare_focus_mask_by_landmarks((w, h), gt_points)  ##TODO: should we ignore which is ignore
         ##TODO:
         # show_img = self.visualize_gt(img, polygons, focus_mask)
         # cv2.imwrite("test_mask.jpg", show_img)

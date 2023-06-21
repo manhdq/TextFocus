@@ -7,6 +7,9 @@ import random
 import sys
 from functools import partial
 from multiprocessing import Pool
+from shapely.geometry import Polygon, Point, MultiPolygon, \
+                        LineString, MultiLineString, GeometryCollection, \
+                        MultiPoint
 
 import cv2
 import numpy as np
@@ -52,6 +55,59 @@ def get_parser():
                         help='Generate negative chip or not')
     args = parser.parse_args()
     return args
+
+
+def pil_load_img(path):
+    image = Image.open(path)
+    image = np.array(image)
+    return image
+
+
+def points2box(points):
+    x1 = points[:, 0].min()
+    y1 = points[:, 1].min()
+    x2 = points[:, 0].max()
+    y2 = points[:, 1].max()
+    return np.array((x1, y1, x2, y2), dtype=points.dtype)
+
+
+class TextInstance(object):
+    def __init__(self, points, orient, text, is_valid):
+        self.orient = orient
+        self.text = text
+        self.is_valid = is_valid
+        self.bottoms = None
+        self.e1 = None
+        self.e2 = None
+        if self.text != "#":
+            self.label = 1
+        else:
+            self.label = -1
+
+        """
+        remove_points = []
+        if len(points) > 4:
+            # remove point if area is almost unchanged after removing it
+            ori_area = cv2.contourArea(points)
+            for p in range(len(points)):
+                # attempt to remove p
+                index = list(range(len(points)))
+                index.remove(p)
+                area = cv2.contourArea(points[index])
+                if np.abs(ori_area - area)/ori_area < 0.0017 and len(points) - len(remove_points) > 4:
+                    remove_points.append(p)
+            self.points = np.array([point for i, point in enumerate(points) if i not in remove_points])
+        else:
+            self.points = np.array(points)
+        """
+        self.points = np.array(points)
+        self.box = points2box(self.points)
+
+    def __repr__(self,):
+        return str(self.__dict__)
+
+    def __getitem__(self, item):
+        return getattr(self, item)
 
 
 class ChipGenerator():
@@ -102,18 +158,19 @@ class ChipGenerator():
             img_name_list = [img_name.split('.')[0] for img_name in img_name_list]
             print(f"Generating chips from {len(img_name_list)} images for phase {phase}...")
             ##TODO: Dont know such item cant be used, set rule later
-            remove_list = ["0070", "0346", "0030", 
+            remove_list = ["0070", "0030", 
                         "1065", "1171", "1006", "1038", "1323"]
             for remove_id in remove_list:
                 if remove_id in img_name_list:
                     img_name_list.remove(remove_id)
 
-            # for img_name in tqdm(img_name_list, total=len(img_name_list)):
-            #     self._positive_gen(img_name, img_dir, ann_dir, chip_img_dir, chip_ann_dir)
-            with Pool(self.n_threads) as pool:
-                all_data = list(tqdm(pool.imap(partial(self._positive_gen, img_dir=img_dir, ann_dir=ann_dir,
-                                        chip_img_dir=chip_img_dir, chip_ann_dir=chip_ann_dir), img_name_list),
-                        total=len(img_name_list)))
+            for img_name in tqdm(img_name_list[0:], total=len(img_name_list)):
+                print(img_name)
+                self._positive_gen(img_name, img_dir, ann_dir, chip_img_dir, chip_ann_dir)
+            # with Pool(self.n_threads) as pool:
+            #     all_data = list(tqdm(pool.imap(partial(self._positive_gen, img_dir=img_dir, ann_dir=ann_dir,
+            #                             chip_img_dir=chip_img_dir, chip_ann_dir=chip_ann_dir), img_name_list),
+            #             total=len(img_name_list)))
 
     def _positive_gen(self, img_name, img_dir, ann_dir, chip_img_dir, chip_ann_dir):
         """
@@ -124,7 +181,7 @@ class ChipGenerator():
 
         img_pil = Image.open(img_path)
         img_w, img_h = img_pil.size
-        labels, boxes, kpts_list, texts = get_annotation_from_txt(ann_path, (img_w, img_h))
+        labels, obj_is_valids, boxes, kpts_list, texts = get_annotation_from_txt(ann_path, (img_w, img_h))
         
         # Calculate sqrt bbox areas
         ws = (boxes[:, 2] - boxes[:, 0]).astype(np.int32)
@@ -157,6 +214,7 @@ class ChipGenerator():
         valid_bboxes = boxes[valid_ids, :]
         valid_kpts = [kpts_list[valid_id] for valid_id in valid_ids]
         chip_clses = labels[valid_ids]
+        valid_obj_is_valids = obj_is_valids[valid_ids]
         chip_texts = [texts[valid_id] for valid_id in valid_ids]
 
         chip_id = 0
@@ -182,17 +240,27 @@ class ChipGenerator():
 
             # Mapping valid bboxes and kpts with chip
             lines = []
-            for j, (valid_bbox, valid_kpt, lbl, text) in enumerate(zip(valid_bboxes, valid_kpts, chip_clses, chip_texts)):
-                if self.check_valid_bbox_and_kpts_in_chip(valid_bbox, valid_kpt, chip):
-                    line = f"{lbl}"
+            for j, (valid_bbox, valid_kpt, lbl, obj_is_valid, text) in enumerate(zip(valid_bboxes, valid_kpts, chip_clses, valid_obj_is_valids, chip_texts)):
+                bboxes, kpts, obj_chip_is_valids = self.check_valid_bbox_and_kpts_in_chip(valid_bbox, valid_kpt, chip)
+
+                if kpts is None or len(kpts)==0:  # Out of boundary
+                    continue
+                
+                for kpt, bbox, obj_chip_is_valid in zip(kpts, bboxes, obj_chip_is_valids):
+                    if kpt.shape[0] == 0:  # Out of boundary
+                        continue
+
+                    final_is_valid = obj_is_valid * obj_chip_is_valid
+
+                    line = f"{lbl} {final_is_valid}"
 
                     chip_w = chip[2] - chip[0]
                     chip_h = chip[3] - chip[1]
 
-                    chip_box_x1 = valid_bbox[0] - chip[0]
-                    chip_box_y1 = valid_bbox[1] - chip[1]
-                    chip_box_x2 = valid_bbox[2] - chip[0]
-                    chip_box_y2 = valid_bbox[3] - chip[1]
+                    chip_box_x1 = bbox[0] - chip[0]
+                    chip_box_y1 = bbox[1] - chip[1]
+                    chip_box_x2 = bbox[2] - chip[0]
+                    chip_box_y2 = bbox[3] - chip[1]
 
                     chip_box_xn = (chip_box_x1 + chip_box_x2) / 2 / chip_w
                     chip_box_yn = (chip_box_y1 + chip_box_y2) / 2 / chip_h
@@ -201,35 +269,155 @@ class ChipGenerator():
 
                     line = line + f" {chip_box_xn:.4f} {chip_box_yn:.4f} {chip_box_wn:.4f} {chip_box_hn:.4f} "
 
-                    chip_kpt = valid_kpt - np.array([chip[0], chip[1]])[None]
+                    chip_kpt = kpt - np.array([chip[0], chip[1]])[None]
                     chip_kpt = chip_kpt.flatten()
                     line = line + " ".join(list(map(str, chip_kpt)))
 
                     line = line + f" | {text}"
                     lines.append(line)
             
+            ##TODO: 
+            # polygons = self.parse_carve_lines(lines)
+            # show_img = self.visualize_gt(np.array(padding_chip), polygons)
+            # cv2.imwrite("test_chip.jpg", show_img[..., ::-1])
+            # exit()
+            
             with open(chip_ann_path, "w") as f:
                 f.write("\n".join(lines))
 
         return None, None
 
-    @staticmethod
-    def check_valid_bbox_and_kpts_in_chip(bbox, kpts, chip, area_threshold=0.01):
+    def parse_carve_lines(self, lines):
+        """
+        .mat file parser
+        :param gt_path: (str), mat file path
+        :return: (list), TextInstance
+        """
+        
+        polygons = []
+        for line in lines:
+            ann_infos = line.split(" | ")
+            text = ann_infos[1:]
+            text = " | ".join(text).strip()
+            ann_infos = ann_infos[0].strip().split()
+            is_valid = int(ann_infos[1])
+            gt = list(map(float, ann_infos[6:]))
+            assert len(gt) % 2 == 0
+            pts = np.stack([gt[0::2], gt[1::2]]).T.astype(np.int32)
+            polygons.append(TextInstance(pts, "c", text, is_valid))
+
+        return polygons
+
+    ##TODO:
+    def visualize_gt(self, image, contours, focus_mask=None):
+    
+        image_show = image.copy()
+        h, w = image_show.shape[:2]
+        image_show = (image_show - image_show.min()) / (image_show.max() - image_show.min()) * 255
+        image_show = np.ascontiguousarray(image_show[:, :, ::-1]).astype(np.uint8)
+
+        # Add focus mask
+        if focus_mask is not None:
+            focus_mask = cv2.resize(focus_mask.copy(), (w, h), interpolation=cv2.INTER_NEAREST)
+            overlay = image_show.copy()
+            mask_color_pos = (0, 255, 0)  # cyan
+            mask_color_neg = (0, 0, 255)  # red
+            overlay[:, :, 0][focus_mask == 1] = mask_color_pos[0] # Blue
+            overlay[:, :, 1][focus_mask == 1] = mask_color_pos[1] # Green
+            overlay[:, :, 2][focus_mask == 1] = mask_color_pos[2] # Red
+            overlay[:, :, 0][focus_mask == -1] = mask_color_neg[0] # Blue
+            overlay[:, :, 1][focus_mask == -1] = mask_color_neg[1] # Green
+            overlay[:, :, 2][focus_mask == -1] = mask_color_neg[2] # Red
+            image_show = cv2.addWeighted(overlay, 0.5, image_show, 0.5, 0)
+
+        for contour in contours:
+            box = contour.box.astype(int)
+            image_show = cv2.rectangle(image_show, (box[0], box[1]), (box[2], box[3]),
+                                    (255, 0, 0), 1)
+
+            boundary_color = (0, 255, 0) if contour.is_valid else (0, 0, 255)
+            image_show = cv2.polylines(image_show,
+                                    [contour.points.astype(int)], True, boundary_color, 2)
+
+        # show_gt = cv2.resize(image_show, (320, 320))
+
+        return image_show
+
+    ##TODO: Make `area_threshold` dynamic. Delete `bbox`
+    def check_valid_bbox_and_kpts_in_chip(self, bbox, kpts, chip, area_threshold=0.6):
         """
         Check bbox and kpts in chip
         """
-        # ##TODO: Maybe we need just kpts
-        # w = int(chip[2] - chip[0])
-        # h = int(chip[3] - chip[1])
-        # sqrt_img_size = np.sqrt(w * h)
-        # min_area_threshold = int(sqrt_img_size * area_threshold)
+        chip_kpts = self.bbox2kpts(chip)
+        chip_polygon = Polygon(chip_kpts)
+        obj_polygon = Polygon(kpts)
+        ori_area = obj_polygon.area
+        inter_polygon = obj_polygon.intersection(chip_polygon)
+        
+        inter_kpts = []
+        if isinstance(inter_polygon, Polygon):
+            inter_kpts = [np.array(inter_polygon.exterior.coords[:-1], dtype=np.int32)]  ##TODO: We need int??
+        elif isinstance(inter_polygon, (Point, MultiPoint, LineString, MultiLineString)):
+            return None, None, False
+        elif isinstance(inter_polygon, MultiPolygon):
+            inter_kpts = [np.array(inter_part_polygon.exterior.coords[:-1], dtype=np.int32) for \
+                            inter_part_polygon in inter_polygon]
+        elif isinstance(inter_polygon, GeometryCollection):
+            for inter_part_polygon in inter_polygon:
+                if isinstance(inter_part_polygon, Polygon):
+                    inter_kpts.append(np.array(inter_part_polygon.exterior.coords[:-1], dtype=np.int32))
+        else:
+            ##TODO: Raise
+            print(inter_polygon)
+            inter_kpts = [np.array(inter_polygon.exterior.coords[:-1], dtype=np.int32)]
 
-        # mask = np.zeros((h, w))
-        # cv2.fillPoly(mask, [kpts.astype(int)], 1)
-        # return np.sqrt(mask.sum()) >= min_area_threshold
-        bbox = bbox.astype(int)
-        return bbox[0] >= chip[0] and bbox[2] <= chip[2] and \
-            bbox[1] >= chip[1] and bbox[3] <= chip[3]
+        ## Get box and check valid
+        bboxes = []
+        is_valids = []
+        inter_kpts_out = []
+        for inter_kpt in inter_kpts:
+            if inter_kpt.shape[0] == 0:
+                continue
+
+            inter_area = Polygon(inter_kpt).area
+            area_ratio = inter_area / ori_area
+            # Get box
+            bboxes.append(self.kpts2bbox(inter_kpt))
+
+            if area_ratio >= area_threshold:
+                is_valids.append(True)
+            else:
+                is_valids.append(False)
+            inter_kpts_out.append(inter_kpt)
+        
+        return bboxes, inter_kpts_out, is_valids
+
+    def bbox2kpts(self, bbox):
+        """
+        Convert from box to kpts
+        
+        Args:
+            bbox (np.ndaray): (4,)
+        
+        Output:
+            kpts (np.ndarray): (4, 2)
+        """
+        return np.array([[bbox[0], bbox[1]],   # x1, y1
+                         [bbox[2], bbox[1]],   # x2, y1
+                         [bbox[2], bbox[3]],   # x2, y2
+                         [bbox[0], bbox[3]]])  # x1, y2
+
+    def kpts2bbox(self, kpts):
+        """
+        Convert from kpts to bbox
+        
+        Args:
+            kpts (np.ndaray): (N, 2)
+        
+        Output:
+            bbox (np.ndarray): (4)
+        """
+        return np.array([kpts[:, 0].min(), kpts[:, 1].min(), kpts[:, 0].max(), kpts[:, 1].max()])
 
     def _generate_chip(self, boxes, img_size, c_size, c_stride):
         '''
@@ -266,6 +454,7 @@ def get_annotation_from_txt(ann_path, img_size):
 
     boxes = []
     labels = []
+    is_valids = []
     kpts_list = []
     texts = []
     try:
@@ -277,7 +466,7 @@ def get_annotation_from_txt(ann_path, img_size):
                 text = text.strip()
                 texts.append(text)
                 ann_infos = ann_infos.strip().split()
-            else:  # China CTW
+            else:  # China CTW  ##TODO: Delete this
                 ann_infos = line.split()
                 texts.append(ann_infos[-1])
                 ann_infos = ann_infos[:-1]
@@ -285,20 +474,24 @@ def get_annotation_from_txt(ann_path, img_size):
             lbl = int(ann_infos[0])
             labels.append(lbl)
 
-            xn, yn, wn, hn = tuple(map(float, ann_infos[1:5]))
+            is_valid = int(ann_infos[1])
+            is_valids.append(is_valid)
+
+            xn, yn, wn, hn = tuple(map(float, ann_infos[2:6]))
             x1 = (xn - wn / 2) * w
             y1 = (yn - hn / 2) * h
             x2 = (xn + wn / 2) * w
             y2 = (yn + hn / 2) * h
             boxes.append([x1, y1, x2, y2])
 
-            kpts = np.array(list(map(float, ann_infos[5:]))).reshape((-1, 2))
+            kpts = np.array(list(map(float, ann_infos[6:]))).reshape((-1, 2))
             kpts_list.append(kpts)
         
         boxes = np.array(boxes)
         labels = np.array(labels)
+        is_valids = np.array(is_valids)
 
-        return labels, boxes, kpts_list, texts
+        return labels, is_valids, boxes, kpts_list, texts
     
     except:
         print(ann_path)

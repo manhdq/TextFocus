@@ -63,8 +63,10 @@ def main(args):
             pts = np.stack([gt[0::2], gt[1::2]]).T.astype(np.int32)
             box = get_box(pts, (w, h))
             xn, yn, wn, hn = box
+
+            is_valid = True if label.strip() != "#" else False
             
-            line = f"0 {xn:.4f} {yn:.4f} {wn:.4f} {hn:.4f} " + " ".join(list(map(str, gt))) + f" | {label}"
+            line = f"0 {1 if is_valid else 0} {xn:.4f} {yn:.4f} {wn:.4f} {hn:.4f} " + " ".join(list(map(str, gt))) + f" | {label}"
             assert len(gt) % 2 == 0
             lines.append(line)
         # img = check_ann(img, lines)
@@ -104,7 +106,9 @@ def main(args):
             box = get_box(pts, (w, h))
             xn, yn, wn, hn = box
 
-            line = f"0 {xn:.4f} {yn:.4f} {wn:.4f} {hn:.4f} " + " ".join(list(map(str, gt))) + f" | {label}"
+            is_valid = True if label.strip() != "#" else False
+
+            line = f"0 {1 if is_valid else 0} {xn:.4f} {yn:.4f} {wn:.4f} {hn:.4f} " + " ".join(list(map(str, gt))) + f" | {label}"
             assert len(gt) % 2 == 0
             lines.append(line)
         
