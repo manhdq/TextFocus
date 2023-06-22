@@ -267,7 +267,7 @@ class TextDataset(object):
             dmp = ndimg.distance_transform_edt(inst_mask)  # distance transform
             
             if (
-                polygon.is_valid == 1
+                polygon.is_valid == 0
                 or np.max(dmp) < self.min_text_size
                 or np.sum(inst_mask) < 150  ##TODO: should we change this??
             ):

@@ -22,15 +22,17 @@ def check_ann(image, lines):
     box_list = []
     kpts_list = []
     text_list = []
+    is_valids = []
     for line in lines:
-        ann_infos, text = line.strip().split("|")
+        ann_infos, text = line.strip().split(" | ")
         ann_infos = ann_infos.strip().split()
         text = text.strip()
         # print(text)
 
         cls = int(ann_infos[0])
-        box = np.array(list(map(float, ann_infos[1:5])))
-        lms = list(map(float, ann_infos[5:]))
+        is_valids.append(int(ann_infos[1]))
+        box = np.array(list(map(float, ann_infos[2:6])))
+        lms = list(map(float, ann_infos[6:]))
 
         box = xywh2xyxy(box, (w, h))
         pts = np.stack([lms[0::2], lms[1::2]]).T.astype(np.int32)
@@ -41,14 +43,14 @@ def check_ann(image, lines):
 
     for box, text in zip(box_list, text_list):
         box = box.astype(int)
-        color = (255, 0, 0) if text=="#" else (0, 255, 0)
+        color = (255, 0, 0)
         image_show = cv2.rectangle(image_show, (box[0], box[1]), (box[2], box[3]),
                                 color, 1)
-
-    image_show = cv2.polylines(image_show,
-                            [points.astype(int) for points in kpts_list], True, (0, 0, 255), 2)
-    image_show = cv2.polylines(image_show,
-                            [points.astype(int) for points in kpts_list], True, (0, 255, 0), 2)
+    
+    for point, is_valid in zip(kpts_list, is_valids):
+        boundary_color = (0, 255, 0) if is_valid else (0, 0, 255)
+        image_show = cv2.polylines(image_show,
+                                [point.astype(int)], True, boundary_color, 2)
 
     return image_show
 
