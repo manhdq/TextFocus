@@ -33,10 +33,12 @@ class TextInstance(object):
         self.bottoms = None
         self.e1 = None
         self.e2 = None
-        if self.text != "#":
+        if self.is_valid == 1:
             self.label = 1
-        else:
+        elif self.is_valid == 0:
             self.label = -1
+        else:
+            raise
 
         """
         remove_points = []
