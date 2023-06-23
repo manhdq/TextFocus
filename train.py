@@ -31,7 +31,8 @@ best_total_loss = np.inf
 
 
 ##TODO: Modify for saving best, last and according to each loss and metrics
-def save_model(model, epoch, lr, optimizer, suffix=""):
+def save_model(model, epoch, scheduler, optimizer, suffix=""):
+    cur_lr = scheduler.get_lr()
 
     save_dir = os.path.join(cfg.save_dir, cfg.exp_name)
     if not os.path.exists(save_dir):
@@ -42,18 +43,24 @@ def save_model(model, epoch, lr, optimizer, suffix=""):
     save_path = os.path.join(save_dir, 'TextBPN_{}_{}.pth'.format(model.backbone_name, suffix))
     print('Saving to {}.'.format(save_path))
     state_dict = {
-        'lr': lr,
+        'lr': cur_lr,
         'epoch': epoch,
         'model': model.state_dict() if not cfg.mgpu else model.module.state_dict(),
-        'optimizer': optimizer.state_dict()
+        'optimizer': optimizer.state_dict(),
+        'scheduler': scheduler,
     }
     torch.save(state_dict, save_path)
 
 
-def load_model(model, model_path):
+def load_model(model, optimizer, scheduler, model_path):
+    global lr
     print('Loading from {}'.format(model_path))
     state_dict = torch.load(model_path)
     model.load_state_dict(state_dict['model'])
+    optimizer.load_state_dict(state_dict['optimizer'])
+    scheduler.load_state_dict(state_dict['scheduler'])
+    lr = state_dict['lr']
+    cfg.start_epoch = state_dict['epoch'] + 1
 
 
 def _parse_data(inputs):
@@ -99,6 +106,8 @@ def train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoc
     print("="*10)
     print("TRAINING")
     print("="*10)
+
+    scheduler.step()
 
     losses = {loss_name: AverageMeter() for loss_name in loss_list}
     batch_time = AverageMeter()
@@ -193,11 +202,11 @@ def train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoc
         writer.add_scalar("val/data_time", data_time.avg, epoch+1)
         writer.add_scalar("val/batch_time", batch_time.avg, epoch+1)
 
-        save_model(model, epoch, scheduler.get_lr(), optimizer, suffix="last")
+        save_model(model, epoch, scheduler, optimizer, suffix="last")
         if best_total_loss > losses["total_loss"].avg:
             print(f"Total loss: {best_total_loss:.5f} --> {losses['total_loss'].avg:.5f}. Save model at epoch {epoch}...")
             best_total_loss = losses["total_loss"].avg
-            save_model(model, epoch, scheduler.get_lr(), optimizer, suffix="best")
+            save_model(model, epoch, scheduler, optimizer, suffix="best")
     
     print()
 
@@ -286,8 +295,6 @@ def main():
         model = nn.DataParallel(model)
     if cfg.cuda:
         cudnn.benchmark = True
-    if cfg.resume:
-        load_model(model, cfg.resume)
 
     lr = cfg.lr
     moment = cfg.momentum
@@ -301,10 +308,11 @@ def main():
     else:
         scheduler = lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.9)
 
+    if cfg.resume:
+        load_model(model, optimizer, scheduler, cfg.resume)
+
     print('Start training TextBPN++.')
     for epoch in range(cfg.start_epoch, cfg.max_epoch + 1):
-        ##TODO: Put this `scheduler` to train func
-        scheduler.step()
         train(model, train_loader, val_loader, criterion, scheduler, optimizer, epoch, writer=writer)
 
     print("End.")
