@@ -1,5 +1,6 @@
 from datetime import datetime
 import copy
+import os
 import cv2
 import numpy as np
 
@@ -7,7 +8,18 @@ import torch
 import torch.nn.functional as F
 
 from cfglib.config import config as cfg
-from .prediction_utils import filter_preds, batch_scale_n_shift_dets, nms
+from utils.visualize import visualize
+from .prediction_utils import filter_preds, batch_scale_n_shift_dets, nms, log_info
+
+
+def prepare_color():
+    '''
+    Prepare color to visualize
+    '''
+    lm_color = (0, 142, 248)              # lm point - blue
+    boundary_color = (0, 246, 249)        # boundary color - cyan
+    mask_color = (255, 0, 255)            # mask color - purple
+    return lm_color, boundary_color, mask_color
 
 
 ##TODO: Make this base normal prediction
@@ -19,6 +31,12 @@ class BasePrediction():
                 model,
                 transform,
                 enable_autofocus=False):
+        self.draw_preds = cfg.draw_preds
+        self.draw_points = cfg.draw_points
+        self.vis_threshold = cfg.vis_threshold
+        self.lm_color, self.boundary_color, self.mask_color = prepare_color()
+        self.preds_save_dir = cfg.save_dir
+
         self.model = model
         self.transform = transform
         self.enable_autofocus = enable_autofocus
@@ -27,7 +45,73 @@ class BasePrediction():
         '''
         Predict a single image and return prediction results
         '''
-        raise NotImplementedError
+        start_pred_time = datetime.now()
+        img_h, img_w = img.shape[:2]
+
+        outputs = self._forward_model(img)
+        py_preds = outputs["py_preds"]
+        confidences = outputs["confidences"]
+        
+        if self.draw_preds:
+            pred_save_path = self._draw_on_ori_image(img_name=img_name,
+                                                    ori_image=img,
+                                                    all_py_preds=py_preds,
+                                                    all_confidences=confidences,
+                                                    valid_range=cfg.draw_valid_range,
+                                                    suffix="preds")
+
+        self.save_txt_result(img_name, py_preds, confidences)
+        log_info(start_pred_time, img_name, rank=None)
+        return {
+            img_name: {
+                "save_path": pred_save_path,
+                "predictions": [(py_preds, confidences)],
+                "ori_image_shape": img.shape,
+                "prediction_time": (datetime.now() - start_pred_time).total_seconds()
+            }
+        }
+    
+    def save_txt_result(self, img_name, all_py_preds, all_confidences):
+        last_py_preds = all_py_preds[-1]
+        lines = []
+        save_txt_path = os.path.abspath(
+            os.path.join(self.preds_save_dir, "txt_preds", f"{img_name.split('.')[0]}.txt")
+        )
+        for py_pred, confidence in zip(last_py_preds, all_confidences):
+            py_pred_text = " ".join([f"{point[0]:.2f} {point[1]:.2f}" for point in py_pred])
+            line = f"0 {confidence:.2f} {py_pred_text}"
+            lines.append(line)
+        
+        with open(save_txt_path, "w") as f:
+            f.write("\n".join(lines))
+
+    def _draw_on_ori_image(self,
+                        img_name,
+                        ori_image,
+                        all_py_preds,
+                        all_confidences,
+                        valid_range,
+                        suffix,):
+        """
+        Draw and save landmarks and mask to original image
+        """
+        save_image = ori_image.copy()
+        if len(all_confidences):
+            save_image = visualize(image=save_image,
+                                points_group=all_py_preds,
+                                points_color=self.lm_color,
+                                draw_points=self.draw_points,
+                                boundary_color=self.boundary_color,
+                                mask=None,
+                                mask_color=self.mask_color,
+                                confidences=all_confidences,
+                                levels=[3])  ##TODO:
+        save_path = os.path.abspath(
+            os.path.join(self.preds_save_dir, f"{img_name.split('.')[0]}.jpg")
+        )
+        cv2.imwrite(save_path,
+                    save_image[..., ::-1])
+        return save_path
 
     def _post_process_dets(self, item_id, ori_image, groundtruth, all_det_preds):
         '''

@@ -18,7 +18,7 @@ from cfglib.config import config as cfg, update_config, print_config
 from cfglib.option import BaseOptions, DemoOptions
 from network.textnet import TextBPNFocus
 from network.wrapper import TextNetWrapper
-from prediction import TextBPNFocusPrediction
+from prediction import BasePrediction, TextBPNFocusPrediction
 from utils.focus_chip_generator import FocusChip
 from utils.augmentation import BaseTransform
 
@@ -29,27 +29,6 @@ def pil_load_img(path):
     image = Image.open(path)
     image = np.array(image)
     return image
-
-
-def get_parser():
-    '''
-    Parse arguments of the demo
-    '''
-    parser = argparse.ArgumentParser(description='Demo script.')
-    parser.add_argument('--model-path', type=str, required=True,
-                        help='Path to TextFocus model.')
-    parser.add_argument('--cfg-path', type=str, required=True)
-    parser.add_argument('--save-dir', type=str, required=True,
-                        help='Path to save output images')
-    parser.add_argument('--model-type', type=str,
-                        help='Type of model [torch, onnx].')
-    parser.add_argument('--no-cuda', action='store_true',
-                        help='do not using cuda')
-    parser.add_argument('--img-root', type=str,
-                        help="Image root folder / file for demo")
-
-    args = parser.parse_args()
-    return args
 
 
 def load_model(model, model_path):
@@ -91,10 +70,7 @@ def prepare_model(model_path, model_type, device="cpu"):
     return wrapper_model
 
 
-def start_demo_pipeline(img_root,
-                        model_path,
-                        save_dir,
-                        model_type):
+def start_demo_pipeline():
     """
     Start demo pipeline
     """
@@ -119,16 +95,20 @@ def start_demo_pipeline(img_root,
     
     transform = BaseTransform(size=cfg.input_size, mean=cfg.means, std=cfg.stds)
 
-    ##### FOCUSCHIP GENERATOR #####
-    foc_chip_gen = FocusChip(cfg.focus_threshold,
-                            kernel_size=cfg.kernel_size,
-                            min_chip_size=cfg.min_chip_size,
-                            stride=cfg.autofocus_stride)
-    
-    ##TODO: Code TextPrediction without autofocus
-    demo_tool = TextBPNFocusPrediction(model=model,
-                                    transform=transform,
-                                    foc_chip_gen=foc_chip_gen)
+    if cfg.enable_autofocus:
+        ##### FOCUSCHIP GENERATOR #####
+        foc_chip_gen = FocusChip(cfg.focus_threshold,
+                                kernel_size=cfg.kernel_size,
+                                min_chip_size=cfg.min_chip_size,
+                                stride=cfg.autofocus_stride)
+        
+        ##TODO: Code TextPrediction without autofocus
+        demo_tool = TextBPNFocusPrediction(model=model,
+                                        transform=transform,
+                                        foc_chip_gen=foc_chip_gen)
+    else:
+        demo_tool = BasePrediction(model=model,
+                                transform=transform)
 
     demo_results = dict()
     prediction_times = []
@@ -138,7 +118,7 @@ def start_demo_pipeline(img_root,
 
         img = pil_load_img(img_p)
         try:
-            h, w, c = img.shape
+            _, _, c = img.shape
             assert c == 3
         except:
             img = cv2.imread(img_p)
@@ -159,10 +139,7 @@ def main():
     os.makedirs(args.save_dir)
     os.makedirs(os.path.join(args.save_dir, "txt_preds"))
 
-    demo_results = start_demo_pipeline(img_root=args.img_root,
-                                    model_path=args.model_path,
-                                    save_dir=args.save_dir,
-                                    model_type=args.model_type)
+    demo_results = start_demo_pipeline()
 
 
 if __name__ == '__main__':

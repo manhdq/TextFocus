@@ -47,7 +47,7 @@ def save_model(model, epoch, scheduler, optimizer, suffix=""):
         'epoch': epoch,
         'model': model.state_dict() if not cfg.mgpu else model.module.state_dict(),
         'optimizer': optimizer.state_dict(),
-        'scheduler': scheduler,
+        'scheduler': scheduler.state_dict(),
     }
     torch.save(state_dict, save_path)
 

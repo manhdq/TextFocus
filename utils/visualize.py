@@ -181,6 +181,45 @@ def visualize(image, points_group, points_color, draw_points, boundary_color,
     return new_image
 
 
+##TODO: Change name
+def visualize_wo_autofocus(image, points_group, points_color, draw_points, 
+                        boundary_color, confidences, levels=[0, 1, 2, 3]):
+    '''
+    Visualize bbox, landmarks
+    '''
+    new_image = image.copy()
+    image_height, image_width = new_image.shape[:2]
+
+    # Draw boundary
+    boundary_size = max(min(image_height, image_width) // 1000, 1) + 1
+    new_image = cv2.polylines(new_image,
+                    [points.astype(int) for points in points_group[-1]], True, boundary_color, boundary_size)  # Draw last level
+
+    ##TODO: Make this optional
+    # Draw confidences
+    # Get center
+    centers = points_group[-1].mean(axis=1).astype(int)
+    text_face = cv2.FONT_HERSHEY_DUPLEX
+    text_scale = 0.4
+    text_thickness = 1
+    for confidence, center in zip(confidences, centers):
+        text = f"{confidence:.2f}"
+        text_size, _ = cv2.getTextSize(text, text_face, text_scale, text_thickness)
+        text_origin = (int(center[0] - text_size[0] / 2), int(center[1] + text_size[1] / 2))
+        cv2.putText(new_image, text, text_origin, text_face, text_scale, (0,0,0), text_thickness, cv2.LINE_AA)
+
+    if draw_points:
+        radius = max(min(image_height, image_width) // 1000, 1)
+        thickness = radius + 1
+        for level in levels:
+            assert level < len(points_group)
+            cur_py_preds = points_group[level]
+            for points in cur_py_preds:
+                for point in points:
+                    cv2.circle(new_image, (int(point[0]), int(point[1])), radius, points_color, thickness)
+    
+    return new_image
+
 
 def visualize_gt(image, contours, label_tag):
 

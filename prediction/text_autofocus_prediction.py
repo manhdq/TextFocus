@@ -13,25 +13,10 @@ from .prediction_utils import RejectException, batch_scale_n_shift_dets, find_ne
                             log_info, aggregate_prediction_result
 
 
-def prepare_color():
-    '''
-    Prepare color to visualize
-    '''
-    lm_color = (0, 142, 248)              # lm point - blue
-    boundary_color = (0, 246, 249)        # boundary color - cyan
-    mask_color = (255, 0, 255)            # mask color - purple
-    return lm_color, boundary_color, mask_color
-
-
 class TextBPNFocusPrediction(BasePrediction):
     def __init__(self, model, transform, foc_chip_gen):
         super().__init__(model, transform, enable_autofocus=True)
         ##TODO: eliminate redundancy
-        self.draw_preds = cfg.draw_preds
-        self.draw_points = cfg.draw_points
-        self.vis_threshold = cfg.vis_threshold
-        self.lm_color, self.boundary_color, self.mask_color = prepare_color()
-        self.preds_save_dir = cfg.save_dir
         self.first_row_zoom_in = cfg.first_row_zoom_in
         self.foc_chip_gen = foc_chip_gen
         self.grid_gen = GridGenerator(max_valid_size=cfg.max_valid_size,
@@ -42,9 +27,10 @@ class TextBPNFocusPrediction(BasePrediction):
                                     interpolation=cfg.interpolation,
                                     max_chip_size=cfg.max_chip_size)
 
+
     def predict_an_image(self, img_name, img):
         '''
-        Predict a single image and return prediction results
+        Predict a single image with autofocus option and return prediction results
         '''
         start_pred_time = datetime.now()
         ori_img_h, ori_img_w = img.shape[:2]
@@ -297,20 +283,6 @@ class TextBPNFocusPrediction(BasePrediction):
         ##TODO: priority
         self.save_txt_result(img_name, all_py_preds, all_confidences)
         return ori_pred_save_path
-
-    def save_txt_result(self, img_name, all_py_preds, all_confidences):
-        last_py_preds = all_py_preds[-1]
-        lines = []
-        save_txt_path = os.path.abspath(
-            os.path.join(self.preds_save_dir, "txt_preds", f"{img_name.split('.')[0]}.txt")
-        )
-        for py_pred, confidence in zip(last_py_preds, all_confidences):
-            py_pred_text = " ".join([f"{point[0]:.2f} {point[1]:.2f}" for point in py_pred])
-            line = f"0 {confidence:.2f} {py_pred_text}"
-            lines.append(line)
-        
-        with open(save_txt_path, "w") as f:
-            f.write("\n".join(lines))
 
     def _draw_on_ori_image(self,
                         img_name,

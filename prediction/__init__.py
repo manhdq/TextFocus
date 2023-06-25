@@ -1,1 +1,2 @@
 from .text_autofocus_prediction import TextBPNFocusPrediction
+from .base_prediction import BasePrediction
