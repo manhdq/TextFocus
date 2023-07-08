@@ -4,7 +4,7 @@
 
 from __future__ import print_function
 import os
-# from config import Config
+from config import Config
 from models import get_model, get_loss
 from metrics import get_metric
 from datasets import get_dataloader

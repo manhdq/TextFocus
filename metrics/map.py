@@ -22,6 +22,7 @@ AP@.75 means the AP with IoU=0.75
 """
 
 import os
+import glob
 import cv2
 import torch
 import json
@@ -55,11 +56,11 @@ def _eval(coco_gt, image_ids, pred_json_path, **kwargs):
     return stats
 
 class mAPScores():
-    def __init__(self, ann_file, img_dir):
-        self.coco_gt = COCO(ann_file)
+    def __init__(self, ann_dir, img_dir):
         self.img_dir = img_dir
+        self.ann_dir = ann_dir
         self.filepath = f'results/bbox_results.json'
-        self.image_ids = self.coco_gt.getImgIds()
+        self.image_list = glob.glob(os.path.join(img_dir, "*"))
 
         self.reset()
 

@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from .data_utils import image_label
-from ..utils import order_points_clockwise
+from utils import order_points_clockwise
 from pycocotools.coco import COCO
 
 class ImageDataset(Dataset):

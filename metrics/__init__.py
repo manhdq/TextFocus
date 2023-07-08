@@ -33,8 +33,8 @@ def cal_kernel_score(kernel, gt_kernel, gt_texts, training_masks, running_metric
 
 def get_metric(config):
     metric = mAPScores(
-        ann_file= os.path.join('./data', config.project_name, config.val_anns),
-        img_dir=os.path.join('./data', config.project_name, config.val_imgs)
+        ann_dir= os.path.join(config.data_root, "gt", config.val_subroot),
+        img_dir=os.path.join(config.data_root, "Images", config.val_subroot)
     )
 
     return metric
