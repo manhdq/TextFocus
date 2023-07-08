@@ -138,7 +138,7 @@ class Trainer(BaseTrainer):
 
         model = PAN(self.config, state_dict=self.model.state_dict())
         self.metric.update(model)    
-        metric_dict = self.metric.value()
+        # metric_dict = self.metric.value()
         model = None
 
         with torch.no_grad():
@@ -175,10 +175,10 @@ class Trainer(BaseTrainer):
             self.best_acc=acc
             net_save_path = f"{self.checkpoint_dir}/PANNet_best_acc.pth"
             self._save_checkpoint(epoch, net_save_path, save_best=False)
-        if metric_dict['MAP'] > self.best_map:
-            self.best_map=metric_dict['MAP']
-            net_save_path = f"{self.checkpoint_dir}/PANNet_best_map.pth"
-            self._save_checkpoint(epoch, net_save_path, save_best=False)
+        # if metric_dict['MAP'] > self.best_map:
+        #     self.best_map=metric_dict['MAP']
+        #     net_save_path = f"{self.checkpoint_dir}/PANNet_best_map.pth"
+        #     self._save_checkpoint(epoch, net_save_path, save_best=False)
             
         return acc, iou_text, iou_kernel
 

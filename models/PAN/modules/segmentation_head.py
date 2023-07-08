@@ -189,11 +189,11 @@ class SeparableConv2d(nn.Module):
                                         stride=stride, groups=in_channels)
         self.pointwise_conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
         self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
+        # self.relu = nn.ReLU()
 
     def forward(self, x):
         x = self.depthwise_conv(x)
         x = self.pointwise_conv(x)
         x = self.bn(x)
-        x = self.relu(x)
+        # x = self.relu(x)
         return x

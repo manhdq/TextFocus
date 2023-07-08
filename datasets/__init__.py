@@ -53,8 +53,8 @@ def get_dataloader(config):
         transform=transforms.ToTensor()
     )
 
-    trainset = torch.utils.data.Subset(trainset, list(range(30)))
-    valset = torch.utils.data.Subset(valset, list(range(30)))
+    # trainset = torch.utils.data.Subset(trainset, list(range(30)))
+    # valset = torch.utils.data.Subset(valset, list(range(30)))
 
     trainloader = DataLoader(
         dataset=trainset, 

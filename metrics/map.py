@@ -67,11 +67,6 @@ class mAPScores():
         if not os.path.exists('results'):
             os.mkdir('results')
 
-    def _get_image(self, index: int) -> str:
-        image_info = self.coco_gt.loadImgs(index)[0]
-        path = os.path.join(self.img_dir, image_info['file_name'])
-        return path
-
     def reset(self):
         self.model = None
 
@@ -83,10 +78,8 @@ class mAPScores():
         results = []
         with torch.no_grad():
 
-            with tqdm(total=len(self.image_ids)) as pbar:
-                for img_id in self.image_ids:
-                    
-                    img_path = self._get_image(img_id)
+            with tqdm(total=len(self.image_list)) as pbar:
+                for img_path in self.image_list:
                     img = cv2.imread(img_path)
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     _, boxes_list, _ = self.model.predict(img)
@@ -105,7 +98,7 @@ class mAPScores():
                         box = [min_x, min_y, max_x-min_x, max_y-min_y]
    
                         image_result = {
-                            'image_id': img_id,
+                            'image_id': img_path.split(os.sep)[-1].split(".")[0],
                             'category_id': 1,
                             'score': 1.0,
                             'bbox': box,
@@ -127,7 +120,7 @@ class mAPScores():
     def value(self):
         result = self.compute()
         if result:
-            stats = _eval(self.coco_gt, self.image_ids, self.filepath)
+            stats = _eval(self.ann_dir, self.image_list, self.filepath)
             return {
                 "MAP" : np.round(float(stats[0]),4),
                 "MAPsmall" : np.round(float(stats[3]),4),

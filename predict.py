@@ -99,7 +99,7 @@ class PAN:
     def predict(self, 
             img, 
             output_dir:str =None, 
-            short_size: int = 736, 
+            short_size: int = 736,  ##TODO: priority. Dynamic this
             crop_region: bool =False):
 
         """
