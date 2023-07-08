@@ -1,0 +1,11 @@
+pyyaml>=5.1
+tensorboard
+pyclipper
+Polygon3
+einops==0.2.0
+prefetch_generator==1.0.1
+imgaug==0.4.0
+lmdb==1.0.0
+transformers==4.6.1
+torchnet
+torchvision==0.10
