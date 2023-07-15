@@ -81,6 +81,28 @@ def draw_bbox(img_path, result, color=(255, 0, 0), thickness=2):
         cv2.line(img_path, tuple(point[3]), tuple(point[0]), color, thickness)
     return img_path
 
+def draw_points(img_path, result, color=(255, 0, 0), thickness=2):
+    if isinstance(img_path, str):
+        img_path = cv2.imread(img_path)
+        # img_path = cv2.cvtColor(img_path, cv2.COLOR_BGR2RGB)
+    img_path = img_path.copy()
+    for points in result:
+        points = points.astype(int)
+        img_path = cv2.polylines(img_path, [points], True, color, thickness)
+    return img_path
+
+def draw_mask(img, mask, mask_color, alpha=0.2):
+    h, w = img.shape[:2]
+    # Draw focus mask
+    mask = cv2.resize(mask.copy(), (w, h), interpolation=cv2.INTER_NEAREST)
+    overlay = img.copy()
+    # Blue overlay for interested object (255, 0, 0)
+    overlay[:, :, 0][mask == 1] = mask_color[0] # Blue
+    overlay[:, :, 1][mask == 1] = mask_color[1] # Green
+    overlay[:, :, 2][mask == 1] = mask_color[2] # Red
+    new_image = cv2.addWeighted(overlay, alpha, img, 1-alpha, 0)
+    return new_image
+
 def order_points_clockwise(pts):
     rect = np.zeros((4, 2), dtype="float32")
     s = pts.sum(axis=1)

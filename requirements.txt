@@ -9,3 +9,4 @@ lmdb==1.0.0
 transformers==4.6.1
 torchnet
 torchvision==0.10
+scikit-learn
