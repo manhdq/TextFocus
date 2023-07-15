@@ -23,6 +23,8 @@ class Pipeline:
         if os.path.exists(self.output):
             shutil.rmtree(self.output)
             os.mkdir(self.output)
+        else:
+            os.mkdir(self.output)
 
         self.init_modules(config, args.weight)
         self.save_img = True  ##TODO: 

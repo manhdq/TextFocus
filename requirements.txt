@@ -10,3 +10,7 @@ transformers==4.6.1
 torchnet
 torchvision==0.10
 scikit-learn
+pycocotools
+pandas
+colorlog
+pillow==9.5.0

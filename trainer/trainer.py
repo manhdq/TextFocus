@@ -11,12 +11,12 @@ from tqdm import tqdm
 import torch
 import torchvision.utils as vutils
 from torchvision import transforms
-from metrics import runningScore, cal_text_score, cal_kernel_score, cal_recall_precison_f1
+from metrics import runningScore, cal_text_score, cal_kernel_score, cal_focus_score, cal_recall_precison_f1
 from base import BaseTrainer
 from predict import PAN
 
 class Trainer(BaseTrainer):
-    def __init__(self, args, config, model, criterion, train_loader, val_loader, metric, weights_init=None):
+    def __init__(self, args, config, model, criterion, train_loader, val_loader, metric, weights_init=None, using_autofocus=False):
         super(Trainer, self).__init__(args, config, model, criterion, metric, weights_init)
         
         self.show_images_interval = args.val_interval
@@ -25,6 +25,7 @@ class Trainer(BaseTrainer):
         self.val_loader = val_loader
         self.train_loader_len = len(train_loader)
         self.val_loader_len = len(val_loader)
+        self.using_autofocus = using_autofocus
         
         self.logger.info('train dataset has {} samples,{} in dataloader'.format(self.train_loader.dataset_len,
                                                                                 self.train_loader_len))
@@ -34,6 +35,8 @@ class Trainer(BaseTrainer):
 
         self.logger.info(f"number of trainable parameters: {model.trainable_parameters()}")
 
+
+    ##TODO: Clean code
     def _train_epoch(self, epoch):
         self.model.train()
         epoch_start = time.time()
@@ -41,8 +44,10 @@ class Trainer(BaseTrainer):
         train_loss = 0.
         running_metric_text = runningScore(2)
         running_metric_kernel = runningScore(2)
+        if self.using_autofocus:
+            running_metric_focus = runningScore(2)
         lr = self.optimizer.param_groups[0]['lr']
-        for i, (images, labels, training_masks) in enumerate(self.train_loader):
+        for i, (images, labels, training_masks, focus_masks, flattened_focus_masks) in enumerate(self.train_loader):
             if i >= self.train_loader_len:
                 break
             self.global_step += 1
@@ -50,11 +55,17 @@ class Trainer(BaseTrainer):
 
             # 数据进行转换和丢到gpu
             cur_batch_size = images.size()[0]
-            images, labels, training_masks = images.to(self.device), labels.to(self.device), training_masks.to(
-                self.device)
+            if self.using_autofocus:
+                images, labels, training_masks, focus_masks, flattened_focus_masks = \
+                                images.to(self.device), labels.to(self.device), training_masks.to(self.device), \
+                                focus_masks.to(self.device), flattened_focus_masks.to(self.device)
+                preds, focus_preds = self.model(images)
+                loss_all, loss_tex, loss_ker, loss_agg, loss_dis, loss_focus = self.criterion(preds, labels, training_masks, focus_preds, flattened_focus_masks)
+            else:
+                images, labels, training_masks = images.to(self.device), labels.to(self.device), training_masks.to(self.device)
+                preds = self.model(images)
+                loss_all, loss_tex, loss_ker, loss_agg, loss_dis = self.criterion(preds, labels, training_masks)
 
-            preds = self.model(images)
-            loss_all, loss_tex, loss_ker, loss_agg, loss_dis = self.criterion(preds, labels, training_masks)
             # backward
             self.optimizer.zero_grad()
             loss_all.backward()
@@ -65,24 +76,32 @@ class Trainer(BaseTrainer):
             score_kernel = cal_kernel_score(preds[:, 1, :, :], labels[:, 1, :, :], labels[:, 0, :, :], training_masks,
                                             running_metric_kernel)
 
+            if self.using_autofocus:
+                score_focus = cal_focus_score(focus_preds, focus_masks, running_metric_focus)
+
             # loss 和 acc 记录到日志
             loss_all = loss_all.item()
             loss_tex = loss_tex.item()
             loss_ker = loss_ker.item()
             loss_agg = loss_agg.item()
             loss_dis = loss_dis.item()
+            if self.using_autofocus:
+                loss_focus = loss_focus.item()
             train_loss += loss_all
             acc = score_text['Mean Acc']
             iou_text = score_text['Mean IoU']
             iou_kernel = score_kernel['Mean IoU']
+            iou_focus = 0.
+            if self.using_autofocus:
+                iou_focus = score_focus['Mean IoU']
 
             if (i + 1) % self.display_interval == 0:
                 batch_time = time.time() - batch_start
                 self.logger.info(
-                    '[{}/{}], [{}/{}], global_step: {}, Speed: {:.1f} samples/sec, acc: {:.4f}, iou_text: {:.4f}, iou_kernel: {:.4f}, loss_all: {:.4f}, loss_tex: {:.4f}, loss_ker: {:.4f}, loss_agg: {:.4f}, loss_dis: {:.4f}, lr:{:.6}, time:{:.2f}'.format(
+                    '[{}/{}], [{}/{}], global_step: {}, Speed: {:.1f} samples/sec, acc: {:.4f}, iou_text: {:.4f}, iou_kernel: {:.4f}, iou_focus: {:.4f}, loss_all: {:.4f}, loss_tex: {:.4f}, loss_ker: {:.4f}, loss_agg: {:.4f}, loss_dis: {:.4f}, lr:{:.6}, time:{:.2f}'.format(
                         epoch, self.epochs, i + 1, self.train_loader_len, self.global_step,
                                             self.display_interval * cur_batch_size / batch_time, acc, iou_text,
-                        iou_kernel, loss_all, loss_tex, loss_ker, loss_agg, loss_dis, lr, batch_time))
+                        iou_kernel, iou_focus, loss_all, loss_tex, loss_ker, loss_agg, loss_dis, lr, batch_time))
                 batch_start = time.time()
 
             if (i + 1) % self.save_interval == 0:
@@ -95,6 +114,9 @@ class Trainer(BaseTrainer):
             self.writer.add_scalar('TRAIN/LOSS/loss_ker', loss_ker, self.global_step)
             self.writer.add_scalar('TRAIN/LOSS/loss_agg', loss_agg, self.global_step)
             self.writer.add_scalar('TRAIN/LOSS/loss_dis', loss_dis, self.global_step)
+            if self.using_autofocus:
+                self.writer.add_scalar('TRAIN/LOSS/loss_focus', loss_focus, self.global_step)
+                self.writer.add_scalar('TRAIN/ACC_IOU/iou_focus', iou_focus, self.global_step)
             self.writer.add_scalar('TRAIN/ACC_IOU/acc', acc, self.global_step)
             self.writer.add_scalar('TRAIN/ACC_IOU/iou_text', iou_text, self.global_step)
             self.writer.add_scalar('TRAIN/ACC_IOU/iou_kernel', iou_kernel, self.global_step)
@@ -131,8 +153,11 @@ class Trainer(BaseTrainer):
         acc = 0.
         iou_text = 0.
         iou_kernel = 0.
+        iou_focus = 0.
         running_metric_text = runningScore(2)
         running_metric_kernel = runningScore(2)
+        if self.using_autofocus:
+            running_metric_focus = runningScore(2)
         
         epoch_start = time.time()
 
@@ -142,23 +167,32 @@ class Trainer(BaseTrainer):
         model = None
 
         with torch.no_grad():
-            for i, (images, labels, training_masks) in enumerate(tqdm(self.val_loader)):
-                
-                images, labels, training_masks = images.to(self.device), labels.to(self.device), training_masks.to(
-                    self.device)
-
-                preds = self.model(images)
-                loss_all, loss_tex, loss_ker, loss_agg, loss_dis = self.criterion(preds, labels, training_masks)
+            for i, (images, labels, training_masks, focus_masks, flattened_focus_masks) in enumerate(tqdm(self.val_loader)):
+                if self.using_autofocus:
+                    images, labels, training_masks, focus_masks, flattened_focus_masks = \
+                                    images.to(self.device), labels.to(self.device), training_masks.to(self.device), \
+                                    focus_masks.to(self.device), flattened_focus_masks.to(self.device)
+                    preds, focus_preds = self.model(images)
+                    loss_all, loss_tex, loss_ker, loss_agg, loss_dis, loss_focus = self.criterion(preds, labels, training_masks, focus_preds, flattened_focus_masks)
+                else:
+                    images, labels, training_masks = images.to(self.device), labels.to(self.device), training_masks.to(self.device)
+                    preds = self.model(images)
+                    loss_all, loss_tex, loss_ker, loss_agg, loss_dis = self.criterion(preds, labels, training_masks)
             
                 # acc iou
                 score_text = cal_text_score(preds[:, 0, :, :], labels[:, 0, :, :], training_masks, running_metric_text)
                 score_kernel = cal_kernel_score(preds[:, 1, :, :], labels[:, 1, :, :], labels[:, 0, :, :], training_masks,
                                                 running_metric_kernel)
 
+                if self.using_autofocus:
+                    score_focus = cal_focus_score(focus_preds, focus_masks, running_metric_focus)
+
                 val_loss += loss_all.item()
                 acc += score_text['Mean Acc']
                 iou_text += score_text['Mean IoU']
                 iou_kernel += score_kernel['Mean IoU']
+                if self.using_autofocus:
+                    iou_focus += score_focus['Mean IoU']
 
         epoch_end = time.time()
 
@@ -168,8 +202,8 @@ class Trainer(BaseTrainer):
         iou_kernel = iou_kernel*1.0 / self.val_loader_len
 
         self.logger.info(
-            '[{}/{}],  val_acc: {:.4f}, val_iou_text: {:.4f}, val_iou_kernel: {:.4f}, val_loss_all: {:.4f}, time:{:.2f}'.format(
-                epoch, self.epochs, acc, iou_text, iou_kernel, loss_all, epoch_end-epoch_start))
+            '[{}/{}],  val_acc: {:.4f}, val_iou_text: {:.4f}, val_iou_kernel: {:.4f}, val_iou_focus: {:.4f}, val_loss_all: {:.4f}, time:{:.2f}'.format(
+                epoch, self.epochs, acc, iou_text, iou_kernel, iou_focus, loss_all, epoch_end-epoch_start))
         
         if acc>self.best_acc:
             self.best_acc=acc
@@ -180,7 +214,7 @@ class Trainer(BaseTrainer):
         #     net_save_path = f"{self.checkpoint_dir}/PANNet_best_map.pth"
         #     self._save_checkpoint(epoch, net_save_path, save_best=False)
             
-        return acc, iou_text, iou_kernel
+        return acc, iou_text, iou_kernel, iou_focus
 
 
     def _on_epoch_finish(self):

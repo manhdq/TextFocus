@@ -106,19 +106,17 @@ class DataAugment():
         # rot_mat是最终的旋转矩阵
         # 获取原始bbox的四个中点，然后将这四个点转换到旋转后的坐标系下
         rot_text_polys = list()
-        for bbox in text_polys:
-            point1 = np.dot(rot_mat, np.array([bbox[0, 0], bbox[0, 1], 1]))
-            point2 = np.dot(rot_mat, np.array([bbox[1, 0], bbox[1, 1], 1]))
-            point3 = np.dot(rot_mat, np.array([bbox[2, 0], bbox[2, 1], 1]))
-            point4 = np.dot(rot_mat, np.array([bbox[3, 0], bbox[3, 1], 1]))
-            rot_text_polys.append([point1, point2, point3, point4])
+        for points in text_polys:
+            points_ = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
+            points_= np.dot(rot_mat, points_.T).T
+            rot_text_polys.append(points_)
         return rot_img, np.array(rot_text_polys, dtype=np.float32)
 
-    def random_crop(self, imgs, img_size):
+    def random_crop(self, imgs, text_polys, text_tags, img_size):
         h, w = imgs[0].shape[0:2]
         th, tw = img_size
         if w == tw and h == th:
-            return imgs
+            return imgs, text_polys
 
         # label中存在文本实例，并且按照概率进行裁剪
         if np.max(imgs[1][:, :, 0]) > 0 and random.random() > 3.0 / 8.0:
@@ -151,7 +149,12 @@ class DataAugment():
                 imgs[idx] = imgs[idx][i:i + th, j:j + tw, :]
             else:
                 imgs[idx] = imgs[idx][i:i + th, j:j + tw]
-        return imgs
+
+        if text_polys is not None:
+            text_polys[..., 0] = text_polys[..., 0] - j
+            text_polys[..., 1] = text_polys[..., 1] - i
+        
+        return imgs, text_polys
 
     def resize(self, im: np.ndarray, text_polys: np.ndarray,
                input_size: numbers.Number or list or tuple or np.ndarray, keep_ratio: bool = False) -> tuple:

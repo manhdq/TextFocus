@@ -108,14 +108,11 @@ def decode_clip(preds, scale=1, threshold=0.7311, min_area=5):
         
         rect = cv2.minAreaRect(points)
         poly = cv2.boxPoints(rect).astype(int)
-        print(poly.shape)
 
         d_i = cv2.contourArea(poly) * 1.5 / cv2.arcLength(poly, True)
         pco = pyclipper.PyclipperOffset()
         pco.AddPath(poly, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
         shrinked_poly = np.array(pco.Execute(d_i))
-        print(shrinked_poly.shape)
-        exit()
         if shrinked_poly.size == 0:
             continue
         rect = cv2.minAreaRect(shrinked_poly)

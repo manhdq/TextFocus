@@ -14,6 +14,7 @@ batch_size: 1
 num_workers: 2
 
 image_size: 640
+max_points: 20                        # For dataset consistency
 
 # learning rate policy
 lr_policy:
@@ -32,10 +33,21 @@ model:
   fpem_repeat: 2
   pretrained: True
   segmentation_head: "FPEM_FFM"
+  focus_layer_choice: 0                 # 0: up1;  1: up2;  2: up3;  3: up4
+  is_training: True
 
 loss: 
   alpha: 0.5
   beta: 0.25
+  gamma: 0.5
+  focal_gamma: 1.0
   delta_agg: 0.5
   delta_dis: 3
   ohem_ratio: 3
+
+using_autofocus: False
+autofocus:
+  dont_care_low: 3
+  dont_care_high: 200
+  small_threshold: 50
+  stride: 4

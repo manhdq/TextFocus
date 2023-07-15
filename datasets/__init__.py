@@ -9,7 +9,9 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 import copy
 import pathlib
-from . import dataset 
+
+from . import dataset
+from .focus_gen import FocusGenerator
 
 
 def get_datalist(data_root, data_subroot):
@@ -32,14 +34,21 @@ def get_dataloader(config):
     data_root = config.data_root
     train_subroot = config.train_subroot
     train_data_list = get_datalist(data_root, train_subroot)
+    
     val_subroot = config.val_subroot
     val_data_list = get_datalist(data_root, val_subroot)
+
+    focus_gen = None
+    if config.using_autofocus:
+        focus_gen = FocusGenerator(config.autofocus)
 
     trainset = dataset.ImageDataset(
         data_list=train_data_list,
         input_size=config.image_size,
         img_channel=3,
         shrink_ratio=0.5,
+        focus_gen=focus_gen,
+        max_points=config.max_points,
         train=True,
         transform=transforms.ToTensor()
     )
@@ -49,6 +58,8 @@ def get_dataloader(config):
         input_size=736,  ##TODO: priority. Dynamic this
         img_channel=3,
         shrink_ratio=1,
+        focus_gen=focus_gen,
+        max_points=config.max_points,
         train=False,
         transform=transforms.ToTensor()
     )

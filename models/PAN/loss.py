@@ -6,9 +6,11 @@ import torch
 from torch import nn
 import numpy as np
 
+from .focal_loss import FocalLoss
+
 
 class PANLoss(nn.Module):
-    def __init__(self, alpha=0.5, beta=0.25, delta_agg=0.5, delta_dis=3, ohem_ratio=3, reduction='mean'):
+    def __init__(self, alpha=0.5, beta=0.25, gamma=0.5, focal_gamma=1.0, delta_agg=0.5, delta_dis=3, ohem_ratio=3, using_autofocus=False, reduction='mean'):
         """
         Implement PSE Loss.
         :param alpha: loss kernel 前面的系数
@@ -22,12 +24,18 @@ class PANLoss(nn.Module):
         assert reduction in ['mean', 'sum'], " reduction must in ['mean','sum']"
         self.alpha = alpha
         self.beta = beta
+        self.gamma = gamma
         self.delta_agg = delta_agg
         self.delta_dis = delta_dis
         self.ohem_ratio = ohem_ratio
         self.reduction = reduction
 
-    def forward(self, outputs, labels, training_masks):
+        self.using_autofocus = using_autofocus
+
+        # Focus loss
+        self.focus_loss = FocalLoss(gamma=focal_gamma, ignore_index=-1)
+
+    def forward(self, outputs, labels, training_masks, focus_preds=None, flattened_focus_masks=None):
         texts = outputs[:, 0, :, :]
         kernels = outputs[:, 1, :, :]
         gt_texts = labels[:, 0, :, :]
@@ -66,8 +74,13 @@ class PANLoss(nn.Module):
         else:
             raise NotImplementedError
 
-        loss_all = loss_text + self.alpha * loss_kernel + self.beta * (loss_agg + loss_dis)
-        return loss_all, loss_text, loss_kernel, loss_agg, loss_dis
+        if self.using_autofocus:
+            focus_loss = self.focus_loss(focus_preds, flattened_focus_masks)
+            loss_all = loss_text + self.alpha * loss_kernel + self.beta * (loss_agg + loss_dis) + focus_loss * self.gamma
+            return loss_all, loss_text, loss_kernel, loss_agg, loss_dis, focus_loss
+        else:
+            loss_all = loss_text + self.alpha * loss_kernel + self.beta * (loss_agg + loss_dis)
+            return loss_all, loss_text, loss_kernel, loss_agg, loss_dis
 
     def agg_dis_loss(self, texts, kernels, gt_texts, gt_kernels, similarity_vectors):
         """

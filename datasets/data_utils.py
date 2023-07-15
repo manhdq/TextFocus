@@ -65,18 +65,18 @@ def generate_rbox(im_size, text_polys, text_tags,training_mask, shrink_ratio):
     h, w = im_size
     score_map = np.zeros((h, w), dtype=np.uint8)
     for i, (poly, tag) in enumerate(zip(text_polys, text_tags)):
-        try:
-            poly = poly.astype(np.int)
-            # d_i = cv2.contourArea(poly) * (1 - shrink_ratio * shrink_ratio) / cv2.arcLength(poly, True)
-            d_i = cv2.contourArea(poly) * (1 - shrink_ratio) / cv2.arcLength(poly, True) + 0.5
-            pco = pyclipper.PyclipperOffset()
-            pco.AddPath(poly, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
-            shrinked_poly = np.array(pco.Execute(-d_i))
-            cv2.fillPoly(score_map, shrinked_poly, i + 1)
-            if not tag:
-                cv2.fillPoly(training_mask, shrinked_poly, 0)
-        except:
-            print(poly)
+        # try:
+        poly = poly.astype(int)
+        # d_i = cv2.contourArea(poly) * (1 - shrink_ratio * shrink_ratio) / cv2.arcLength(poly, True)
+        d_i = cv2.contourArea(poly) * (1 - shrink_ratio) / cv2.arcLength(poly, True) + 0.5
+        pco = pyclipper.PyclipperOffset()
+        pco.AddPath(poly, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+        shrinked_poly = np.array(pco.Execute(-d_i))
+        cv2.fillPoly(score_map, shrinked_poly, i + 1)
+        if not tag:
+            cv2.fillPoly(training_mask, shrinked_poly, 0)
+        # except:
+        #     print(poly)
     return score_map, training_mask
 
 
@@ -108,9 +108,11 @@ def image_label(im: np.ndarray, text_polys: np.ndarray, text_tags: list, input_s
     h, w, _ = im.shape
     # 检查越界
     text_polys = check_and_validate_polys(text_polys, (h, w))
-
+    ##TODO: Dynamic this for train and val option
     if train:
         im, text_polys = augmentation(im, text_polys, scales, degrees)
+    else:
+        im, text_polys = data_aug.resize(im, text_polys, input_size)
 
     h, w, _ = im.shape
     short_edge = min(h, w)
@@ -126,9 +128,9 @@ def image_label(im: np.ndarray, text_polys: np.ndarray, text_tags: list, input_s
     for i in (1, shrink_ratio):
         score_map, training_mask = generate_rbox((h, w), text_polys, text_tags,training_mask, i)
         score_maps.append(score_map)
+        
     score_maps = np.array(score_maps, dtype=np.float32)
-    imgs = data_aug.random_crop([im, score_maps.transpose((1, 2, 0)), training_mask], (input_size, input_size))
-    return imgs[0], imgs[1].transpose((2, 0, 1)), imgs[2]  # im,score_maps,training_mask#
+    return im, score_maps, training_mask, text_polys
 
 if __name__ == '__main__':
     poly = np.array([377,117,463,117,465,130,378,130]).reshape(-1,2)

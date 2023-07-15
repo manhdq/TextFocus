@@ -5,7 +5,10 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from models.PAN.modules import *
+
+
+from .modules import *
+from .autofocus import AutoFocus
 
 backbone_dict = {'resnet18': {'models': resnet18, 'out': [64, 128, 256, 512]},
                  'resnet34': {'models': resnet34, 'out': [64, 128, 256, 512]},
@@ -45,6 +48,16 @@ class Model(nn.Module):
         self.segmentation_head = segmentation_head_dict[segmentation_head](backbone_out, **model_config)
         self.name = '{}_{}'.format(backbone, segmentation_head)
 
+        self.is_training = model_config['is_training']
+        self.using_autofocus = model_config['using_autofocus']
+        self.focus_layer_choice = model_config['focus_layer_choice']
+
+        if self.using_autofocus:
+            autofocus_in_channels = [
+                64, 128, 256, 512
+            ][self.focus_layer_choice]
+            self.autofocus = AutoFocus(autofocus_in_channels)
+
     def trainable_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
         
@@ -57,6 +70,18 @@ class Model(nn.Module):
         backbone_out = self.backbone(x)
         segmentation_head_out = self.segmentation_head(backbone_out)
         y = F.interpolate(segmentation_head_out, size=(H, W), mode='bilinear', align_corners=True)
+
+        if self.using_autofocus:
+            # Feature map extraction for Autofocus phase
+            focus_layer_feat = backbone_out[self.focus_layer_choice]
+            autofocus_out = self.autofocus(focus_layer_feat)
+            if self.is_training:
+                autofocus_out = torch.reshape(autofocus_out,
+                                        shape=(autofocus_out.shape[0], 2, -1))
+            else:
+                autofocus_out = F.softmax(autofocus_out, dim=1)
+            
+            return y, autofocus_out
         return y
 
 
