@@ -53,7 +53,7 @@ def quadratic(a, b, c):
         x = (- b) / (2 * a)
         return x
 
-def generate_rbox(im_size, text_polys, text_tags,training_mask, shrink_ratio):
+def generate_rbox(im_size, text_polys, text_tags,text_lengths, training_mask, shrink_ratio):
     """
     生成mask图，白色部分是文本，黑色是北京
     :param im_size: 图像的h,w
@@ -64,14 +64,20 @@ def generate_rbox(im_size, text_polys, text_tags,training_mask, shrink_ratio):
     """
     h, w = im_size
     score_map = np.zeros((h, w), dtype=np.uint8)
-    for i, (poly, tag) in enumerate(zip(text_polys, text_tags)):
+    for i, (poly, tag, length) in enumerate(zip(text_polys, text_tags, text_lengths)):
         # try:
-        poly = poly.astype(int)
+        poly = poly.astype(int)[:length]
         # d_i = cv2.contourArea(poly) * (1 - shrink_ratio * shrink_ratio) / cv2.arcLength(poly, True)
         d_i = cv2.contourArea(poly) * (1 - shrink_ratio) / cv2.arcLength(poly, True) + 0.5
         pco = pyclipper.PyclipperOffset()
         pco.AddPath(poly, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
-        shrinked_poly = np.array(pco.Execute(-d_i))
+        pco_out = pco.Execute(-d_i)
+        if len(pco_out[0]) > 1:  ##TODO: Understand this bug
+            pco_new_out = []
+            for pco_sub in pco_out:
+                pco_new_out = pco_new_out + pco_sub
+            pco_out = [pco_new_out]
+        shrinked_poly = np.array(pco_out)
         cv2.fillPoly(score_map, shrinked_poly, i + 1)
         if not tag:
             cv2.fillPoly(training_mask, shrinked_poly, 0)
@@ -91,7 +97,7 @@ def augmentation(im: np.ndarray, text_polys: np.ndarray, scales: np.ndarray, deg
     return im, text_polys
 
 
-def image_label(im: np.ndarray, text_polys: np.ndarray, text_tags: list, input_size: int = 640,
+def image_label(im: np.ndarray, text_polys: np.ndarray, text_tags: list, text_lengths: np.ndarray, input_size: int = 640,
                 shrink_ratio: float = 0.5, degrees: int = 10, train: bool = True,
                 scales: np.ndarray = np.array([0.5, 1, 2.0, 3.0])) -> tuple:
     """
@@ -126,7 +132,7 @@ def image_label(im: np.ndarray, text_polys: np.ndarray, text_tags: list, input_s
     training_mask = np.ones((h, w), dtype=np.uint8)
     score_maps = []
     for i in (1, shrink_ratio):
-        score_map, training_mask = generate_rbox((h, w), text_polys, text_tags,training_mask, i)
+        score_map, training_mask = generate_rbox((h, w), text_polys, text_tags,text_lengths, training_mask, i)
         score_maps.append(score_map)
         
     score_maps = np.array(score_maps, dtype=np.float32)

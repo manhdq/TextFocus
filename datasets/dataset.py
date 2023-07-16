@@ -26,13 +26,13 @@ class ImageDataset(Dataset):
         self.focus_gen = focus_gen
 
     def __getitem__(self, index):
-        img_path, text_polys, text_tags = self.data_list[index]
+        img_path, text_polys, text_tags, text_lengths = self.data_list[index]
         im = cv2.imread(img_path, 1 if self.img_channel == 3 else 0)
 
         if self.img_channel == 3:
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
 
-        img, score_maps, training_mask, text_polys = image_label(im, text_polys, text_tags, self.input_size,
+        img, score_maps, training_mask, text_polys = image_label(im, text_polys, text_tags, text_lengths, self.input_size,
                                                                 self.shrink_ratio, degrees=90, train=self.train)
 
         if self.train:
@@ -116,9 +116,9 @@ class ImageDataset(Dataset):
     def load_data(self, data_list: list) -> list:
         t_data_list = []
         for img_path, label_path in data_list:
-            bboxs, text_tags = self._get_annotation(label_path)
+            bboxs, text_tags, text_lengths = self._get_annotation(label_path)
             if len(bboxs) > 0:
-                t_data_list.append((img_path, bboxs, text_tags))
+                t_data_list.append((img_path, bboxs, text_tags, text_lengths))
             else:
                 print('there is no suit bbox in {}'.format(label_path))
         return t_data_list
@@ -131,6 +131,7 @@ class ImageDataset(Dataset):
     def _get_annotation(self, label_path: str) -> tuple:
         boxes = []
         text_tags = []
+        text_lengths = []
         with open(label_path, encoding='utf-8', mode='r') as f:
             for line in f.readlines():
                 ann_infos = line.split(" | ")
@@ -143,9 +144,11 @@ class ImageDataset(Dataset):
                 # try:
                 box = np.array(gt).reshape(-1, 2).astype(int)
                 assert box.shape[0] <= self.max_points, box.shape
+                text_lengths.append(box.shape[0])
                 if box.shape[0] < self.max_points:
                     box_pad = np.stack([box[-1]]*(self.max_points - box.shape[0]))
                     box = np.concatenate([box, box_pad], 0)
+                
                 # print(box.shape)
                 # box = order_points_clockwise(np.array(gt).reshape(-1, 2))
                 ##TODO: Fix this later
@@ -157,7 +160,7 @@ class ImageDataset(Dataset):
                         text_tags.append(True)
                 # except:
                 #     print('load label failed on {}'.format(label_path))
-        return np.array(boxes, dtype=np.float32), np.array(text_tags, dtype=bool)
+        return np.array(boxes, dtype=np.float32), np.array(text_tags, dtype=bool), np.array(text_lengths, dtype=int)
 
     def __len__(self):
         return len(self.data_list)

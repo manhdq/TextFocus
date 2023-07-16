@@ -177,6 +177,7 @@ class BaseTrainer:
         Resume from saved checkpoints
         :param checkpoint_path: Checkpoint path to be resumed
         """
+        ##TODO: Modify this
         self.logger.info("Loading checkpoint: {} ...".format(checkpoint_path))
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint['state_dict'])
