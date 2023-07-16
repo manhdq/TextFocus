@@ -147,9 +147,15 @@ class Trainer(BaseTrainer):
         return {'train_loss': train_loss / self.train_loader_len, 'lr': lr, 'time': time.time() - epoch_start,
                 'epoch': epoch}
 
+    ##TODO: Write val info tensorboard
     def _val_epoch(self, epoch):
         self.model.eval()
         val_loss = 0.
+        val_loss_tex = 0.
+        val_loss_ker = 0.
+        val_loss_agg = 0.
+        val_loss_dis = 0.
+        val_loss_focus = 0.
         acc = 0.
         iou_text = 0.
         iou_kernel = 0.
@@ -188,6 +194,12 @@ class Trainer(BaseTrainer):
                     score_focus = cal_focus_score(focus_preds, focus_masks, running_metric_focus)
 
                 val_loss += loss_all.item()
+                val_loss_tex += loss_tex.item()
+                val_loss_ker += loss_ker.item()
+                val_loss_agg += loss_agg.item()
+                val_loss_dis += loss_dis.item()
+                if self.using_autofocus:
+                    val_loss_focus += loss_focus.item()
                 acc += score_text['Mean Acc']
                 iou_text += score_text['Mean IoU']
                 iou_kernel += score_kernel['Mean IoU']
@@ -199,12 +211,31 @@ class Trainer(BaseTrainer):
         acc = acc*1.0 / self.val_loader_len
         iou_text = iou_text*1.0 / self.val_loader_len
         val_loss = val_loss*1.0 / self.val_loader_len
+        val_loss_tex = val_loss_tex*1.0 / self.val_loader_len
+        val_loss_ker = val_loss_ker*1.0 / self.val_loader_len
+        val_loss_agg = val_loss_agg*1.0 / self.val_loader_len
+        val_loss_dis = val_loss_dis*1.0 / self.val_loader_len
+        val_loss_focus = val_loss_focus*1.0 / self.val_loader_len
         iou_kernel = iou_kernel*1.0 / self.val_loader_len
+        iou_focus = iou_focus*1.0 / self.val_loader_len
 
         self.logger.info(
             '[{}/{}],  val_acc: {:.4f}, val_iou_text: {:.4f}, val_iou_kernel: {:.4f}, val_iou_focus: {:.4f}, val_loss_all: {:.4f}, time:{:.2f}'.format(
-                epoch, self.epochs, acc, iou_text, iou_kernel, iou_focus, loss_all, epoch_end-epoch_start))
+                epoch, self.epochs, acc, iou_text, iou_kernel, iou_focus, val_loss, epoch_end-epoch_start))
         
+        # write tensorboard
+        self.writer.add_scalar('VALID/LOSS/loss_all', val_loss, self.global_step)
+        self.writer.add_scalar('VALID/LOSS/loss_tex', val_loss_tex, self.global_step)
+        self.writer.add_scalar('VALID/LOSS/loss_ker', val_loss_ker, self.global_step)
+        self.writer.add_scalar('VALID/LOSS/loss_agg', val_loss_agg, self.global_step)
+        self.writer.add_scalar('VALID/LOSS/loss_dis', val_loss_dis, self.global_step)
+        if self.using_autofocus:
+            self.writer.add_scalar('VALID/LOSS/loss_focus', val_loss_focus, self.global_step)
+            self.writer.add_scalar('VALID/ACC_IOU/iou_focus', iou_focus, self.global_step)
+        self.writer.add_scalar('VALID/ACC_IOU/acc', acc, self.global_step)
+        self.writer.add_scalar('VALID/ACC_IOU/iou_text', iou_text, self.global_step)
+        self.writer.add_scalar('VALID/ACC_IOU/iou_kernel', iou_kernel, self.global_step)
+
         if acc>self.best_acc:
             self.best_acc=acc
             net_save_path = f"{self.checkpoint_dir}/PANNet_best_acc.pth"

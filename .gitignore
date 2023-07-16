@@ -7,3 +7,4 @@
 *.so
 *.o
 weights
+results/*.txt

@@ -1,0 +1,19 @@
+gpu_devices: '0'
+
+image_size: 640
+max_points: 20                        # For dataset consistency
+
+model:
+  backbone: "resnet18"
+  fpem_repeat: 2
+  pretrained: True
+  segmentation_head: "FPEM_FFM"
+  focus_layer_choice: 0                 # 0: up1;  1: up2;  2: up3;  3: up4
+  is_training: True
+
+using_autofocus: False
+autofocus:
+  dont_care_low: 3
+  dont_care_high: 200
+  small_threshold: 50
+  stride: 4

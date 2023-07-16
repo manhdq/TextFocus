@@ -9,6 +9,7 @@ from pipeline import Detection
 
 
 parser = argparse.ArgumentParser("Document Extraction")
+parser.add_argument("--config_path")
 parser.add_argument("--input", help="Path to single image to be scanned")
 parser.add_argument("--output", default="./results", help="Path to output folder")
 parser.add_argument("--weight", type=str)
@@ -47,7 +48,7 @@ class Pipeline:
 
 
 if __name__ == "__main__":
-    config_path = "./config/configs.yaml"
+    config_path = args.config_path
     config = Config(config_path)
     pipeline = Pipeline(args, config)
     img = cv2.imread(args.input)
