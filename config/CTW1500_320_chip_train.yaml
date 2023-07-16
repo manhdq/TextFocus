@@ -6,7 +6,7 @@ train_subroot: "chip_for_train"
 val_subroot: "chip_for_test"
 #################   TRAINING CONFIG   ###################
 
-pretrained: ""
+pretrained: "/home/ubuntu/Documents/working/pixtaVN/RA/PAN.pytorch/TextFocus/weights/PANNet_best_acc.pth"
 
 gpu_devices: '0'                     # supports multi-gpus
 num_epochs: 100

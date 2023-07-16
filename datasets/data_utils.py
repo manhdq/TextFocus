@@ -72,11 +72,12 @@ def generate_rbox(im_size, text_polys, text_tags,text_lengths, training_mask, sh
         pco = pyclipper.PyclipperOffset()
         pco.AddPath(poly, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
         pco_out = pco.Execute(-d_i)
-        if len(pco_out[0]) > 1:  ##TODO: Understand this bug
-            pco_new_out = []
-            for pco_sub in pco_out:
-                pco_new_out = pco_new_out + pco_sub
-            pco_out = [pco_new_out]
+        if len(pco_out):
+            if len(pco_out[0]) > 1:  ##TODO: Understand this bug
+                pco_new_out = []
+                for pco_sub in pco_out:
+                    pco_new_out = pco_new_out + pco_sub
+                pco_out = [pco_new_out]
         shrinked_poly = np.array(pco_out)
         cv2.fillPoly(score_map, shrinked_poly, i + 1)
         if not tag:

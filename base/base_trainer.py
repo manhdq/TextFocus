@@ -180,7 +180,20 @@ class BaseTrainer:
         ##TODO: Modify this
         self.logger.info("Loading checkpoint: {} ...".format(checkpoint_path))
         checkpoint = torch.load(checkpoint_path)
-        self.model.load_state_dict(checkpoint['state_dict'])
+        model_state_dict = checkpoint['state_dict']
+        new_model_state_dict = self.model.state_dict()
+
+        leftover_state_names = []
+        for key, _ in new_model_state_dict.items():
+            if key in model_state_dict:
+                new_model_state_dict[key] = model_state_dict[key]
+            else:
+                leftover_state_names.append(key)
+        self.model.load_state_dict(new_model_state_dict)
+        print("State names not exists in loaded checkpoint:")
+        for state_name in leftover_state_names:
+            print(f"- {state_name}")
+            
         if resume:
             self.global_step = checkpoint['global_step']
             self.start_epoch = checkpoint['epoch'] + 1
