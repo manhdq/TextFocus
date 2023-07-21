@@ -301,9 +301,9 @@ class PAN_CTW(data.Dataset):
             self.img_paths.extend(img_paths)
             self.gt_paths.extend(gt_paths)
 
-        ##DEBUG
-        self.img_paths = self.img_paths[:20]
-        self.gt_paths = self.gt_paths[:20]
+        # ##DEBUG
+        # self.img_paths = self.img_paths[:20]
+        # self.gt_paths = self.gt_paths[:20]
         
         if report_speed:
             target_size = 3000
