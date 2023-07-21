@@ -53,7 +53,8 @@ class PAN(nn.Module):
 
         # backbone
         f = self.backbone(imgs)
-        focus_input = f[self.focus_head.focus_layer_choice]
+        if self.using_autofocus:
+            focus_input = f[self.focus_head.focus_layer_choice]
 
         if not self.training and cfg.report_speed:
             torch.cuda.synchronize()
