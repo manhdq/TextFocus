@@ -267,7 +267,20 @@ def main(args):
             cfg.train_cfg.pretrain), 'Error: no pretrained weights found!'
         print('Finetuning from pretrained model %s.' % cfg.train_cfg.pretrain)
         checkpoint = torch.load(cfg.train_cfg.pretrain)
-        model.load_state_dict(checkpoint['state_dict'])
+        model_state_dict = checkpoint['state_dict']
+        new_model_state_dict = model.state_dict()
+
+        leftover_state_names = []
+        for key, _ in new_model_state_dict.items():
+            if key in model_state_dict:
+                new_model_state_dict[key] = model_state_dict[key]
+            else:
+                leftover_state_names.append(key)
+
+        model.load_state_dict(new_model_state_dict)
+        print("State names not exists in loaded checkpoint:")
+        for state_name in leftover_state_names:
+            print(f"- {state_name}")
     if args.resume:
         assert osp.isfile(args.resume), 'Error: no checkpoint directory found!'
         print('Resuming from checkpoint %s.' % args.resume)

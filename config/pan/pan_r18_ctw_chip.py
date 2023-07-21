@@ -67,7 +67,7 @@ train_cfg = dict(
     schedule='polylr',
     epoch=6,
     optimizer='Adam',
-    # pretrain='checkpoints/pan_r18_ctw_finetune/checkpoint.pth.tar'
+    pretrain='pretrained/pan_r18_synth.pth.tar'
 )
 test_cfg = dict(
     min_score=0.88,
