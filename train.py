@@ -86,8 +86,9 @@ def train(train_loader, model, optimizer, epoch, start_iter, writer, cfg, global
         ious_text.update(iou_text.item(), data['imgs'].size(0))
         iou_kernel = torch.mean(outputs['iou_kernel'])
         ious_kernel.update(iou_kernel.item(), data['imgs'].size(0))
-        iou_focus = torch.mean(outputs['iou_focus'])
-        ious_foc.update(iou_focus.item(), data['imgs'].size(0))
+        if model.module.using_autofocus:
+            iou_focus = torch.mean(outputs['iou_focus'])
+            ious_foc.update(iou_focus.item(), data['imgs'].size(0))
 
         # recognition loss
         if with_rec:
@@ -114,13 +115,14 @@ def train(train_loader, model, optimizer, epoch, start_iter, writer, cfg, global
             writer.add_scalar("LOSS/loss_text", loss_text.item(), global_step)
             writer.add_scalar("LOSS/loss_kernel", loss_kernels.item(), global_step)
             writer.add_scalar("LOSS/loss_emb", loss_emb.item(), global_step)
-            writer.add_scalar("LOSS/loss_focus", loss_focus.item(), global_step)
             if with_rec:
                 writer.add_scalar("LOSS/loss_rec", loss_rec.item(), global_step)
 
             writer.add_scalar("IOU/iou_text", iou_text.item(), global_step)
             writer.add_scalar("IOU/iou_kernel", iou_kernel.item(), global_step)
-            writer.add_scalar("IOU/iou_focus", iou_focus.item(), global_step)
+            if model.module.using_autofocus:
+                writer.add_scalar("LOSS/loss_focus", loss_focus.item(), global_step)
+                writer.add_scalar("IOU/iou_focus", iou_focus.item(), global_step)
 
             writer.add_scalar("lr", optimizer.param_groups[0]["lr"], global_step)
 
