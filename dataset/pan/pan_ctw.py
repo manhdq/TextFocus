@@ -70,7 +70,7 @@ def get_ann(img, gt_path):
             data = data_line[0].strip().split(' ')
             xywh_yolo = data[2:6]
             pts = data[6:]
-            pts = [int(item) for item in pts]
+            pts = [int(float(item)) for item in pts]
             pair = int(len(pts) / 2)
             pts = np.asarray(pts) / ([w * 1.0, h * 1.0] * pair)
             ptses.append(pts)
@@ -301,9 +301,9 @@ class PAN_CTW(data.Dataset):
             self.img_paths.extend(img_paths)
             self.gt_paths.extend(gt_paths)
 
-        # ##DEBUG
-        # self.img_paths = self.img_paths[:20]
-        # self.gt_paths = self.gt_paths[:20]
+        ##DEBUG
+        self.img_paths = self.img_paths[:20]
+        self.gt_paths = self.gt_paths[:20]
         
         if report_speed:
             target_size = 3000
