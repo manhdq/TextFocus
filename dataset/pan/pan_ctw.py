@@ -301,9 +301,9 @@ class PAN_CTW(data.Dataset):
             self.img_paths.extend(img_paths)
             self.gt_paths.extend(gt_paths)
 
-        # ##DEBUG
-        # self.img_paths = self.img_paths[:20]
-        # self.gt_paths = self.gt_paths[:20]
+        ##DEBUG
+        self.img_paths = self.img_paths[0:20]
+        self.gt_paths = self.gt_paths[5:6]
         
         if report_speed:
             target_size = 3000
@@ -499,3 +499,35 @@ class PAN_CTW(data.Dataset):
             return self.prepare_train_data(index)
         elif self.split == 'test':
             return self.prepare_test_data(index)
+
+    def get_image(self, index):
+        img_path = self.img_paths[index]
+
+        img = get_img(img_path, self.read_type)
+
+        return img
+
+    def scale_image_short(self, img):
+        return scale_aligned_short(img, self.short_size)
+
+    def get_img_meta(self, img, scaled_img):
+        img_meta = dict(org_img_size=np.array(img.shape[:2]))
+        img_meta.update(dict(img_size=np.array(scaled_img.shape[:2])))
+
+        return img_meta
+
+    def convert_img_meta_to_tensor(self, img_meta):
+        for k, v in img_meta.items():
+            img_meta[k] = torch.from_numpy(v[None])
+        return img_meta
+
+    def convert_img_to_tensor(self, img):
+        assert isinstance(img, np.ndarray), type(img)
+
+        img = Image.fromarray(img)
+        img = img.convert('RGB')
+        img = transforms.ToTensor()(img)
+        img = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                   std=[0.229, 0.224, 0.225])(img)
+
+        return img

@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=0 python3 train.py config/pan/pan_r18_ctw_finetune.py
+CUDA_VISIBLE_DEVICES=0 python3 train.py config/pan/pan_r18_ctw.py

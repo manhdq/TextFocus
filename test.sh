@@ -31,7 +31,7 @@ exe(){
     tmp="${resize_const}_${pos_const}_${len_const}"
     fi
     echo "Exp Name: " $tmp
-    CUDA_VISIBLE_DEVICES=${CUDA_NUM} python3 test.py config/pan/pan_r18_ctwchina_finetune.py --resize_const=${resize_const} --pos_const=${pos_const} --len_const=${len_const}
+    CUDA_VISIBLE_DEVICES=${CUDA_NUM} python3 test.py config/pan/pan_r18_ctw_eval.py --resize_const=${resize_const} --pos_const=${pos_const} --len_const=${len_const}
     
     # ## Rename tmp.csv & Make time.csv
     # cd results/time

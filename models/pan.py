@@ -106,13 +106,18 @@ class PAN(nn.Module):
                 focus_loss = self.focus_head.loss(autofocus_out, focus_mask, flattened_focus_mask)
                 outputs.update(focus_loss)
         else:
-            det_out = self._upsample(det_out, imgs.size(), 4)
-            det_res = self.det_head.get_results(det_out, img_metas, cfg)
-            outputs.update(det_res)
+            if not self.using_autofocus:
+                det_out = self._upsample(det_out, imgs.size(), 4)
+                det_res = self.det_head.get_results(det_out, img_metas, cfg)
+                outputs.update(det_res)
 
-            if self.using_autofocus:
-                autofocus_out = F.softmax(autofocus_out, dim=1)
-                print("asdasdadasda")
-                exit()
+            else:
+                det_out = self._upsample(det_out, imgs.size(), 4)
+                autofocus_out = F.softmax(autofocus_out, dim=1)[:, 1]
+                # det_res = self.det_head.get_results(det_out, img_metas, cfg)
+                # outputs.update(det_res)
+                outputs.update(dict(det_out=det_out, autofocus_out=autofocus_out))
 
         return outputs
+
+    # def recursive_predict()
