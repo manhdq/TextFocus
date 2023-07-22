@@ -486,12 +486,24 @@ def main(args):
             cfg.checkpoint))
 
         checkpoint = torch.load(cfg.checkpoint)
+        model_state_dict = checkpoint['state_dict']
+        new_model_state_dict = model.state_dict()
 
-        d = dict()
-        for key, value in checkpoint['state_dict'].items():
-            tmp = key[7:]  ## Eliminate "module."
-            d[tmp] = value
-        model.load_state_dict(d)
+        leftover_state_names = []
+        for key, _ in new_model_state_dict.items():
+            if "module." + key in model_state_dict:
+                new_model_state_dict[key] = model_state_dict["module." + key]
+            else:
+                leftover_state_names.append(key)
+
+        # d = dict()
+        # for key, value in checkpoint['state_dict'].items():
+        #     tmp = key[7:]  ## Eliminate "module."
+        #     d[tmp] = value
+        model.load_state_dict(new_model_state_dict)
+        print("State names not exists in loaded checkpoint:")
+        for state_name in leftover_state_names:
+            print(f"- {state_name}")
     else:
         print("No checkpoint found at '{}'".format(args.resume))
         raise
@@ -501,6 +513,7 @@ def main(args):
     model_structure(model)
 
     grid_gen = None
+    foc_chip_gen = None
     if cfg.using_autofocus:
         grid_gen = GridGenerator(cfg.grid_generator)
         foc_chip_gen = FocusChip(cfg.focus_chip_generator)
