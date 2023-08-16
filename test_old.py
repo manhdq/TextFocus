@@ -15,7 +15,7 @@ from models import build_model
 from models.utils import fuse_module
 from prediction.grid_generator import GridGenerator
 from prediction.focus_chip_generator import FocusChip
-from utils import ResultFormat, visualize_focus_mask, visualize_detect
+from utils import ResultFormat, visualize
 
 import time
 import csv
@@ -98,126 +98,43 @@ def start_recursive_predict(model, dataload, img_name, img, grid_gen, foc_chip_g
             'prediction_time': 0
         }
 
-    backbone_outs = []
-
+    prediction_results = []
+    num_piles = []
     for tile in scaled_down_tiles:
-        backbone_outs_res = recursive_predict(img_name,
-                                            img,
-                                            tile['image'],
-                                            model=model,
-                                            dataload=dataload,
-                                            rank=0,
-                                            base_scale_down=base_scale_down,
-                                            grid_gen=grid_gen,
-                                            foc_chip_gen=foc_chip_gen,
-                                            prev_left_shift=tile['prev_left_shift'],
-                                            prev_top_shift=tile['prev_top_shift'],
-                                            prev_right_shift=tile['prev_bottom_shift'],
-                                            prev_bottom_shift=tile['prev_bottom_shift'],
-                                            cfg=cfg)
-        backbone_outs.append(backbone_outs_res)
-
-    end = time.time()
-    focus_time = end - start
-
-    start = time.time()
-
-    backbone_outs, chip_scaled_size_list, rank_list, shift_infos_list = _flatten_and_stack_backbone_outs(backbone_outs)
-    det_outs = model.get_det_map_after_backbone(backbone_outs)
-    last_det_out = None
-
-    for det_out, chip_scaled_size, rank, shift_infos \
-                    in zip(det_outs, chip_scaled_size_list, rank_list, shift_infos_list):
-        prev_left_shift, prev_top_shift, prev_right_shift, prev_bottom_shift = shift_infos
-        det_out = det_out.unsqueeze(0)
-
-        to_ori_scale = base_scale_down / \
-                (pow(cfg.autofocus.zoom_in_scale, max(rank - 1, 0)) * \
-                (pow(cfg.autofocus.first_row_zoom_in, min(rank, 1))))
-        chip_org_size = (chip_scaled_size * to_ori_scale).astype(int)
-
-        final_det_out = F.interpolate(det_out, (chip_org_size[0], chip_org_size[1]), mode="nearest")
-        final_det_mask = torch.ones_like(final_det_out) * rank
-
-        final_det_out = F.pad(final_det_out, (prev_left_shift, prev_right_shift, prev_top_shift, prev_bottom_shift), "constant", 0)
-        final_det_mask = F.pad(final_det_mask, (prev_left_shift, prev_right_shift, prev_top_shift, prev_bottom_shift), "constant", 0)
-        
-        final_det_out = F.interpolate(final_det_out, (ori_img_h, ori_img_w), mode="nearest")
-        if rank == 0:
-            final_det_out = final_det_out * 0.8
-        final_det_mask = F.interpolate(final_det_mask, (ori_img_h, ori_img_w), mode="nearest")
-
-        if last_det_out is not None:
-                last_det_out = (final_det_out * final_det_mask + last_det_out) / (final_det_mask + 1)
-        else:
-            last_det_out = final_det_out
+        final_det_out = None
+        final_det_out, num_tile = recursive_predict(img_name,
+                                                    img,
+                                                    tile['image'],
+                                                    model=model,
+                                                    dataload=dataload,
+                                                    rank=0,
+                                                    base_scale_down=base_scale_down,
+                                                    last_det_out=final_det_out,
+                                                    grid_gen=grid_gen,
+                                                    foc_chip_gen=foc_chip_gen,
+                                                    prev_left_shift=tile['prev_left_shift'],
+                                                    prev_top_shift=tile['prev_top_shift'],
+                                                    prev_right_shift=tile['prev_bottom_shift'],
+                                                    prev_bottom_shift=tile['prev_bottom_shift'],
+                                                    count_tile=0,
+                                                    cfg=cfg)
+        prediction_results.append(final_det_out)
+        num_piles.append(num_tile)
+    
+    final_prediction = prediction_results[0]
+    if len(prediction_results) > 1:
+        raise ##TODO: Code later
 
     img_meta = dataload.get_img_meta(img, img)
     img_meta = dataload.convert_img_meta_to_tensor(img_meta)
 
-    outputs = model.det_head.get_results(last_det_out, img_meta, cfg)
-    _draw_detect_on_chip(img_name, img, outputs)
+    outputs = model.det_head.get_results(final_prediction, img_meta, cfg)
 
     end = time.time()
-    detect_time = end - start
-
-    outputs.update(dict(focus_time=focus_time))
-    outputs.update(dict(detect_time=detect_time))
-    outputs.update(dict(total_time=focus_time + detect_time))
-    outputs.update(dict(num_tile=len(rank_list)))
+    outputs.update(dict(time=end-start))
+    outputs.update(dict(num_tile=np.sum(num_tile) + 1))
 
     return outputs
-
-
-def _flatten_and_stack_backbone_outs(backbone_outs):
-    """
-    Flatten the recursive backbone outs
-    """
-    backbone_outs_list = []
-    chip_scaled_size_list = []
-    rank_list = []
-    shift_infos_list = []
-    chip_backbone_queue = [*backbone_outs]
-
-    while len(chip_backbone_queue) > 0:
-        _backbone_out = chip_backbone_queue.pop(0)
-
-        backbone_outs_list.append(_backbone_out['cur_backbone_out'])
-        chip_scaled_size_list.append(_backbone_out['chip_scaled_size'])
-        rank_list.append(_backbone_out['rank'])
-        shift_infos_list.append(_backbone_out['shift_infos'])
-
-        chip_backbone_queue.extend(_backbone_out['backbone_outs'])
-
-    # # Sort based on rank
-    # backbone_outs_list = [b for _,b in sorted(zip(rank_list, backbone_outs_list))]
-
-    backbone_outs = stack_backbone_outs(backbone_outs_list)
-
-    return backbone_outs, chip_scaled_size_list, rank_list, shift_infos_list
-
-
-def stack_backbone_outs(backbone_outs_list):
-    backbone_outs = []
-
-    # Area of feats
-    area_feats = []
-    for f in backbone_outs_list:
-        area_feats.append(f[0].shape[-2] * f[0].shape[-1])
-    # Find best w and h of each feature map
-    best_id = np.argmax(area_feats)
-
-    for f_layer_id in range(4):
-        f = []
-        best_size = (backbone_outs_list[best_id][f_layer_id].shape[-2],
-                    backbone_outs_list[best_id][f_layer_id].shape[-1])
-        for f_id in range(len(backbone_outs_list)):
-            f.append(F.interpolate(backbone_outs_list[f_id][f_layer_id], 
-                                best_size, mode="nearest"))
-        backbone_outs.append(torch.cat(f))
-    
-    return backbone_outs
-
 
 def recursive_predict(img_name,
                     ori_image,
@@ -226,13 +143,16 @@ def recursive_predict(img_name,
                     dataload,
                     rank,
                     base_scale_down,
+                    last_det_out,
                     grid_gen,
                     foc_chip_gen,
                     prev_left_shift,
                     prev_top_shift,
                     prev_right_shift,
                     prev_bottom_shift,
+                    count_tile,
                     cfg):
+    ori_img_h, ori_img_w = ori_image.shape[:2]
 
     scaled_chip = dataload.scale_image_short(chip)
     chip_meta = dataload.get_img_meta(chip, scaled_chip)
@@ -241,9 +161,10 @@ def recursive_predict(img_name,
 
     scaled_chip = dataload.convert_img_to_tensor(scaled_chip).unsqueeze(0)
     scaled_chip = scaled_chip.cuda()
-    outputs = model.focus(imgs=scaled_chip)
+    data = dict(imgs=scaled_chip, img_metas=chip_meta, cfg=cfg)
+    outputs = model(**data)
 
-    cur_backbone_out = outputs['backbone_out']
+    det_out = outputs['det_out']
     autofocus_out = outputs['autofocus_out'][0].cpu().detach().numpy()
 
     if rank == 0:
@@ -253,40 +174,65 @@ def recursive_predict(img_name,
             (pow(cfg.autofocus.zoom_in_scale, max(rank - 1, 0)) * \
             (pow(cfg.autofocus.first_row_zoom_in, min(rank, 1))))
     chip_org_size = (chip_scaled_size * to_ori_scale).astype(int)
+    
+    final_det_out = F.interpolate(det_out, (chip_org_size[0], chip_org_size[1]), mode="nearest")
+    final_det_mask = torch.ones_like(final_det_out) * rank
+
+    # print(rank, (prev_left_shift, prev_right_shift, prev_top_shift, prev_bottom_shift))
+    
+    final_det_out = F.pad(final_det_out, (prev_left_shift, prev_right_shift, prev_top_shift, prev_bottom_shift), "constant", 0)
+    final_det_mask = F.pad(final_det_mask, (prev_left_shift, prev_right_shift, prev_top_shift, prev_bottom_shift), "constant", 0)
+    
+    final_det_out = F.interpolate(final_det_out, (ori_img_h, ori_img_w), mode="nearest")
+    if rank == 0:
+        final_det_out = final_det_out * 0.8
+    final_det_mask = F.interpolate(final_det_mask, (ori_img_h, ori_img_w), mode="nearest")
 
     if cfg.autofocus.draw_preds_chip:
-        _draw_focus_mask_on_chip(img_name, chip, autofocus_out, rank)
+        chip_outputs = model.det_head.get_results(det_out, chip_meta, cfg)
+        _draw_pred_on_chip(img_name, chip, chip_outputs, autofocus_out, rank)
 
-    backbone_outs = []
+    if last_det_out is not None:
+        last_det_out = (final_det_out * final_det_mask + last_det_out) / (final_det_mask + 1)
+    else:
+        last_det_out = final_det_out
+
+    # if rank == 2:
+    #     if pred_idx == 6:
+    #         test1 = last_det_out[0][0].cpu().detach().numpy()
+    #         test1 = ((test1 - test1.min()) / (test1.max() - test1.min()) * 255).astype(np.uint8)
+    #         cv2.imwrite("test1.jpg", test1)
+    #         test2 = last_det_out[0][1].cpu().detach().numpy()
+    #         test2 = ((test2 - test2.min()) / (test2.max() - test2.min()) * 255).astype(np.uint8)
+    #         cv2.imwrite("test2.jpg", test2)
+    #         test3 = final_det_mask[0][0].cpu().detach().numpy()
+    #         test3 = ((test3 - test3.min()) / (test3.max() - test3.min()) * 255).astype(np.uint8)
+    #         cv2.imwrite("test3.jpg", test3)
+    #         exit()
+
     if rank < cfg.autofocus.max_focus_rank:
         chip_height, chip_width = chip.shape[:2]
-        backbone_outs = _recursive_pred_on_focus(img_name,
-                                                ori_image,
-                                                model,
-                                                dataload,
-                                                autofocus_out,
-                                                chip_width,
-                                                chip_height,
-                                                rank,
-                                                base_scale_down,
-                                                grid_gen,
-                                                foc_chip_gen,
-                                                to_ori_scale,
-                                                prev_left_shift,
-                                                prev_top_shift,
-                                                prev_right_shift,
-                                                prev_bottom_shift,
-                                                cfg)
+        last_det_out, count_tile = _recursive_pred_on_focus(img_name,
+                                                            ori_image,
+                                                            model,
+                                                            dataload,
+                                                            autofocus_out,
+                                                            chip_width,
+                                                            chip_height,
+                                                            rank,
+                                                            base_scale_down,
+                                                            last_det_out,
+                                                            grid_gen,
+                                                            foc_chip_gen,
+                                                            to_ori_scale,
+                                                            prev_left_shift,
+                                                            prev_top_shift,
+                                                            prev_right_shift,
+                                                            prev_bottom_shift,
+                                                            count_tile,
+                                                            cfg)
 
-    result = {
-        "cur_backbone_out": cur_backbone_out,
-        "backbone_outs": backbone_outs,
-        "chip_scaled_size": chip_scaled_size,
-        "shift_infos": [prev_left_shift, prev_top_shift, prev_right_shift, prev_bottom_shift],
-        "rank": rank
-    }
-
-    return result
+    return last_det_out, count_tile
 
 
 def _recursive_pred_on_focus(img_name,
@@ -298,6 +244,7 @@ def _recursive_pred_on_focus(img_name,
                             chip_height,
                             rank,
                             base_scale_down,
+                            last_det_out,
                             grid_gen,
                             foc_chip_gen,
                             to_ori_scale,
@@ -305,12 +252,13 @@ def _recursive_pred_on_focus(img_name,
                             prev_top_shift,
                             prev_right_shift,
                             prev_bottom_shift,
+                            count_tile,
                             cfg):
     """
     Cut focus chip and do prediction on this chip
     """
     ori_img_h, ori_img_w = ori_image.shape[:2]
-    backbone_outs = []
+    final_det_out = last_det_out
     # Crop sub chips from the input chip by using the focus mask
     chip_coords = foc_chip_gen(focus_mask, chip_width, chip_height)
     for chip_coord in chip_coords:
@@ -340,23 +288,24 @@ def _recursive_pred_on_focus(img_name,
                                         (zoom_in_chip_w, zoom_in_chip_h),
                                         interpolation=grid_gen.interpolation)
 
-            cur_backbone_outs = recursive_predict(img_name,
-                                                ori_image,
-                                                zoom_in_chip_crop,
-                                                model,
-                                                dataload,
-                                                rank + 1,
-                                                base_scale_down,
-                                                grid_gen,
-                                                foc_chip_gen,
-                                                int(ori_x1),
-                                                int(ori_y1),
-                                                int(ori_img_w - ori_x2),
-                                                int(ori_img_h - ori_y2),
-                                                cfg)
-            backbone_outs.append(cur_backbone_outs)
-
-    return backbone_outs
+            final_det_out, cur_count_tile = recursive_predict(img_name,
+                                                        ori_image,
+                                                        zoom_in_chip_crop,
+                                                        model,
+                                                        dataload,
+                                                        rank + 1,
+                                                        base_scale_down,
+                                                        final_det_out,
+                                                        grid_gen,
+                                                        foc_chip_gen,
+                                                        int(ori_x1),
+                                                        int(ori_y1),
+                                                        int(ori_img_w - ori_x2),
+                                                        int(ori_img_h - ori_y2),
+                                                        0,
+                                                        cfg)
+            count_tile = count_tile + cur_count_tile + 1
+    return final_det_out, count_tile
 
 
 def batch_scale_n_shift_dets(py_preds, scale, left_shift, top_shift, right_shift, bottom_shift):
@@ -376,28 +325,7 @@ def batch_scale_n_shift_dets(py_preds, scale, left_shift, top_shift, right_shift
     return _py_preds
 
 
-def _draw_focus_mask_on_chip(img_name, chip, focus_mask, rank):
-    """
-    Draw and save predictions to chips
-    """
-    global pred_idx
-    chip_with_preds_save_path = None
-
-    # Draw preds on img
-    chip = visualize_focus_mask(image=chip,
-                    mask=focus_mask,
-                    mask_color=(255, 0, 255))
-    chip_with_preds_save_path = os.path.abspath(
-        os.path.join("chip_results", img_name.split('.')[0], f"{img_name.split('.')[0]}_with_preds_{rank}_{pred_idx}.jpg")
-    )
-    os.makedirs(os.path.join("chip_results", img_name.split('.')[0]), exist_ok=True)
-    cv2.imwrite(chip_with_preds_save_path,
-                chip[..., ::-1], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-    pred_idx += 1  # Increase pred_idx for the next saved prediction  ##TODO: For just 1 image
-    return chip_with_preds_save_path
-
-
-def _draw_detect_on_chip(img_name, chip, dets):
+def _draw_pred_on_chip(img_name, chip, dets, focus_mask, rank):
     """
     Draw and save predictions to chips
     """
@@ -417,12 +345,16 @@ def _draw_detect_on_chip(img_name, chip, dets):
     vis_confidences = [confidences[i] for i in range(len(selected_sample)) if selected_sample[i]]
 
     # Draw preds on img
-    chip = visualize_detect(image=chip,
-                        points_group=vis_py_preds,
-                        boundary_color=(255, 0, 255),
-                        confidences=vis_confidences)
+    chip = visualize(image=chip,
+                    points_group=vis_py_preds,
+                    points_color=(0, 142, 248),
+                    draw_points=False,
+                    boundary_color=(255, 0, 255),
+                    mask=focus_mask,
+                    mask_color=(255, 0, 255),
+                    confidences=vis_confidences)
     chip_with_preds_save_path = os.path.abspath(
-        os.path.join("chip_results", img_name.split('.')[0], f"{img_name.split('.')[0]}.jpg")
+        os.path.join("chip_results", img_name.split('.')[0], f"{img_name.split('.')[0]}_with_preds_{rank}_{pred_idx}.jpg")
     )
     os.makedirs(os.path.join("chip_results", img_name.split('.')[0]), exist_ok=True)
     cv2.imwrite(chip_with_preds_save_path,
@@ -457,9 +389,8 @@ def test(testset, model, grid_gen, foc_chip_gen, cfg):
     cfg.report_speed = False
 
     num_tiles = []
-    focus_times = []
-    detect_times = []
-    total_times = []
+    times = []
+    fps_per_tile_list = []
     
     for idx in range(len(testset)):
         print('Testing %d/%d\r' % (idx, len(testset)), end='', flush=True)
@@ -468,6 +399,12 @@ def test(testset, model, grid_gen, foc_chip_gen, cfg):
         img = testset.get_image(idx)
         image_name = testset.img_paths[idx].split(os.sep)[-1].split('.')[0]
 
+        # import numpy as np
+        # import cv2
+        # test = data["imgs"][0].cpu().detach().numpy().transpose(1, 2, 0)
+        # test = ((test - test.min()) / (test.max() - test.min()) *255).astype(np.uint8)
+        # cv2.imwrite("test.jpg", test[..., ::-1])
+        
         start = time.time()
         # forward
         with torch.no_grad():
@@ -505,15 +442,13 @@ def test(testset, model, grid_gen, foc_chip_gen, cfg):
 #         if cfg.vis:
 #             vis.process(data['img_metas'], outputs)
         num_tiles.append(outputs['num_tile'])
-        focus_times.append(outputs['focus_time'])
-        detect_times.append(outputs['detect_time'])
-        total_times.append(outputs['total_time'])
-        print(f"Num tiles: {outputs['num_tile']} - Focus time: {outputs['focus_time']} - Detect time: {outputs['detect_time']} - Total time: {outputs['total_time']} s")
+        times.append(outputs['time'])
+        fps_per_tile_list.append(outputs['num_tile'] / outputs['time'])
+        print(f"Num tiles: {outputs['num_tile']} - Time: {outputs['time']} s")
 
     print(f"Avg num tiles: {np.mean(num_tiles):.2f}")
-    print(f"Avg Focus Time: {np.mean(focus_times):.2f}")
-    print(f"Avg Detect Time: {np.mean(detect_times):.2f}")
-    print(f"FPS: {len(testset) / np.sum(total_times):.2f}")
+    print(f"Avg FPS per tile: {np.mean(fps_per_tile_list):.2f}")
+    print(f"FPS: {len(testset) / np.sum(times):.2f}")
     print('Done!')
 
 

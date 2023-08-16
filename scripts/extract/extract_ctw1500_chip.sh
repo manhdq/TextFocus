@@ -1,0 +1,1 @@
+python test.py config/pan/pan_r18_ctw_chip_eval.py --resize_const=0 --pos_const=0 --len_const=0

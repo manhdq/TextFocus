@@ -120,4 +120,48 @@ class PAN(nn.Module):
 
         return outputs
 
-    # def recursive_predict()
+    def focus(self, imgs):
+        ##NOTE: This function only use for inference
+        assert self.using_autofocus
+
+        outputs = dict()
+        
+        # backbone
+        f = self.backbone(imgs)
+        if self.using_autofocus:
+            focus_input = f[self.focus_head.focus_layer_choice]
+
+        autofocus_out = self.focus_head(focus_input)
+        autofocus_out = F.softmax(autofocus_out, dim=1)[:, 1]
+
+        outputs.update(dict(
+            backbone_out = f,
+            autofocus_out=autofocus_out
+        ))
+
+        return outputs
+
+    def get_det_map_after_backbone(self, backbone_outs):
+        # reduce channel
+        f1 = self.reduce_layer1(backbone_outs[0])
+        f2 = self.reduce_layer2(backbone_outs[1])
+        f3 = self.reduce_layer3(backbone_outs[2])
+        f4 = self.reduce_layer4(backbone_outs[3])
+
+        # FPEM
+        f1_1, f2_1, f3_1, f4_1 = self.fpem1(f1, f2, f3, f4)
+        f1_2, f2_2, f3_2, f4_2 = self.fpem2(f1_1, f2_1, f3_1, f4_1)
+
+        # FFM
+        f1 = f1_1 + f1_2
+        f2 = f2_1 + f2_2
+        f3 = f3_1 + f3_2
+        f4 = f4_1 + f4_2
+        f2 = self._upsample(f2, f1.size())
+        f3 = self._upsample(f3, f1.size())
+        f4 = self._upsample(f4, f1.size())
+        f = torch.cat((f1, f2, f3, f4), 1)
+
+        # detection
+        det_out = self.det_head(f)
+        return det_out

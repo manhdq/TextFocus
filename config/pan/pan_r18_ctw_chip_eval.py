@@ -41,7 +41,7 @@ model = dict(
 )
 data = dict(
     batch_size=2,
-    root_dir = '/home/ubuntu/Documents/working/pixtaVN/RA/TextBPN++/data/CTW1500/yolo/',
+    root_dir = '/home/ubuntu/Documents/working/pixtaVN/RA/data/ctw1500',
     train_data_dir = 'Images/train/',
     test_data_dir = 'Images/test/',
     train_gt_dir = 'gt/train/',
