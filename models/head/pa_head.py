@@ -50,9 +50,9 @@ class PA_Head(nn.Module):
     def get_results(self, out, img_meta, cfg):
         outputs = dict()
 
-        if not self.training and cfg.report_speed:
-            torch.cuda.synchronize()
-            start = time.time()
+        # if not self.training and cfg.report_speed:
+        #     torch.cuda.synchronize()
+        #     start = time.time()
 
         score = torch.sigmoid(out[:, 0, :, :])
         kernels = out[:, :2, :, :] > 0
@@ -63,7 +63,7 @@ class PA_Head(nn.Module):
 
         score = score.data.cpu().numpy()[0].astype(np.float32)
         kernels = kernels.data.cpu().numpy()[0].astype(np.uint8)
-        emb = emb.cpu().numpy()[0].astype(np.float32)
+        emb = emb.detach().cpu().numpy()[0].astype(np.float32)
 
         # pa
         label = pa(kernels, emb)
@@ -79,9 +79,9 @@ class PA_Head(nn.Module):
         score = cv2.resize(score, (img_size[1], img_size[0]),
                            interpolation=cv2.INTER_NEAREST)
 
-        if not self.training and cfg.report_speed:
-            torch.cuda.synchronize()
-            outputs.update(dict(det_post_time=time.time() - start))
+        # if not self.training and cfg.report_speed:
+        #     torch.cuda.synchronize()
+        #     outputs.update(dict(det_post_time=time.time() - start))
 
         scale = (float(org_img_size[1]) / float(img_size[1]),
                  float(org_img_size[0]) / float(img_size[0]))

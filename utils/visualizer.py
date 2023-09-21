@@ -114,6 +114,6 @@ def visualize_focus_mask(image, mask, mask_color):
         overlay[:, :, 0][focus_mask > 0.2] = mask_color[0] # Blue
         overlay[:, :, 1][focus_mask > 0.2] = mask_color[1] # Green
         overlay[:, :, 2][focus_mask > 0.2] = mask_color[2] # Red
-        new_image = cv2.addWeighted(overlay, 0.2, new_image, 0.8, 0)
+        new_image = cv2.addWeighted(overlay, 0.5, new_image, 0.5, 0)
     
     return new_image
